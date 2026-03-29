@@ -1,117 +1,189 @@
 import { useState, useMemo } from 'react'
 import {
-  loadHabit, saveHabit, loadHabitLogs, saveHabitLogs,
-  HABIT_SUGGESTIONS, GRADUATION_DAYS,
-  computeStreak, getLast14, isGraduated, getContextMessage, todayStr,
+  loadHabit,
+  saveHabit,
+  loadHabitLogs,
+  saveHabitLogs,
+  HABIT_SUGGESTIONS,
+  GRADUATION_DAYS,
+  computeStreak,
+  getLast14,
+  isGraduated,
+  getContextMessage,
+  todayStr,
 } from '../habitStore'
 
-/* ── Dot chain ─────────────────────────────────────────────── */
+function CoachNotice({ reminder, onOpenSettings, onReplayOnboarding }) {
+  if (!reminder) return null
+
+  return (
+    <div
+      className="card"
+      style={{
+        background: 'linear-gradient(135deg, rgba(245, 166, 35, 0.12), rgba(16, 16, 31, 0.94))',
+        borderColor: 'var(--border-acc)',
+      }}
+    >
+      <div className="card-title">Coach de routine</div>
+      <div style={{ fontSize: 16, fontWeight: 800, color: 'var(--tx)', marginBottom: 6 }}>{reminder.title}</div>
+      <div style={{ fontSize: 12, color: 'var(--tx-2)', lineHeight: 1.6 }}>{reminder.body}</div>
+      <div style={{ display: 'grid', gap: 'var(--s2)', marginTop: 'var(--s3)' }}>
+        <button className="btn-ghost" onClick={onOpenSettings}>
+          Ouvrir Reglages
+        </button>
+        <button className="save-btn" onClick={onReplayOnboarding}>
+          Revoir le demarrage
+        </button>
+      </div>
+    </div>
+  )
+}
+
 function ChainDots({ days }) {
   return (
     <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', justifyContent: 'center' }}>
-      {days.map((d) => {
+      {days.map((day) => {
         const color =
-          d.status === 'done'    ? 'var(--acc)' :
-          d.status === 'minimum' ? 'var(--p-color)' :
-          d.status === 'missed'  ? 'var(--danger)' :
-          'var(--surface-3)'
+          day.status === 'done'
+            ? 'var(--acc)'
+            : day.status === 'minimum'
+              ? 'var(--p-color)'
+              : day.status === 'missed'
+                ? 'var(--danger)'
+                : 'var(--surface-3)'
         const glow =
-          d.status === 'done'    ? '0 0 6px var(--acc-glow)' :
-          d.status === 'minimum' ? '0 0 6px rgba(167,139,250,0.3)' : 'none'
+          day.status === 'done'
+            ? '0 0 6px var(--acc-glow)'
+            : day.status === 'minimum'
+              ? '0 0 6px rgba(167,139,250,0.3)'
+              : 'none'
+
         return (
-          <div key={d.date} title={d.date} style={{
-            width: 14, height: 14, borderRadius: '50%',
-            background: color,
-            boxShadow: glow,
-            border: d.date === todayStr() ? '2px solid rgba(255,255,255,0.3)' : '2px solid transparent',
-            transition: 'all 0.3s',
-            flexShrink: 0,
-          }} />
+          <div
+            key={day.date}
+            title={day.date}
+            style={{
+              width: 14,
+              height: 14,
+              borderRadius: '50%',
+              background: color,
+              boxShadow: glow,
+              border: day.date === todayStr() ? '2px solid rgba(255,255,255,0.3)' : '2px solid transparent',
+              transition: 'all 0.3s',
+              flexShrink: 0,
+            }}
+          />
         )
       })}
     </div>
   )
 }
 
-/* ── Action buttons ────────────────────────────────────────── */
-function CheckInButtons({ todayLog, onCheck, streak }) {
+function CheckInButtons({ todayLog, onCheck }) {
   if (todayLog) {
-    const labels = { done: ['✓ Fait !', 'var(--ok)'], minimum: ['⚡ Version mini', 'var(--p-color)'], missed: ['✗ Raté', 'var(--danger)'] }
-    const [label, color] = labels[todayLog.status] ?? ['—', 'var(--tx-3)']
+    const labels = {
+      done: ['Fait', 'var(--ok)', '✓'],
+      minimum: ['Version mini', 'var(--p-color)', '⚡'],
+      missed: ['Rate', 'var(--danger)', '↺'],
+    }
+    const [label, color, mark] = labels[todayLog.status] ?? ['-', 'var(--tx-3)', '•']
+
     return (
-      <div style={{
-        background: 'var(--surface-3)',
-        border: `1px solid ${color}22`,
-        borderRadius: 'var(--r2)',
-        padding: 'var(--s4)',
-        textAlign: 'center',
-      }}>
-        <div style={{ fontSize: 28, marginBottom: 4 }}>{label.split(' ')[0]}</div>
+      <div
+        style={{
+          background: 'var(--surface-3)',
+          border: `1px solid ${color}22`,
+          borderRadius: 'var(--r2)',
+          padding: 'var(--s4)',
+          textAlign: 'center',
+        }}
+      >
+        <div style={{ fontSize: 28, marginBottom: 4 }}>{mark}</div>
         <div style={{ fontFamily: 'var(--f-mono)', fontSize: 13, color }}>{label}</div>
-        <button onClick={() => onCheck(null)}
-          style={{ marginTop: 10, background: 'none', border: 'none',
-            color: 'var(--tx-3)', fontSize: 11, cursor: 'pointer', textDecoration: 'underline' }}>
+        <button
+          onClick={() => onCheck(null)}
+          style={{
+            marginTop: 10,
+            background: 'none',
+            border: 'none',
+            color: 'var(--tx-3)',
+            fontSize: 11,
+            cursor: 'pointer',
+            textDecoration: 'underline',
+          }}
+        >
           Corriger
         </button>
       </div>
     )
   }
 
-  // Rescue mode : si hier était raté et pas encore checké aujourd'hui
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--s2)' }}>
-      <button className="save-btn" onClick={() => onCheck('done')}
-        style={{ fontSize: 16, padding: 'var(--s4)', letterSpacing: 1 }}>
-        ✓ Fait !
+      <button className="save-btn" onClick={() => onCheck('done')} style={{ fontSize: 16, padding: 'var(--s4)', letterSpacing: 1 }}>
+        Fait
       </button>
-      <button onClick={() => onCheck('minimum')}
+      <button
+        onClick={() => onCheck('minimum')}
         style={{
           padding: 'var(--s3) var(--s4)',
           background: 'var(--acc-dim)',
           border: '1px solid var(--border-acc)',
           borderRadius: 'var(--r2)',
           color: 'var(--acc)',
-          fontFamily: 'var(--f-ui)', fontWeight: 800,
-          fontSize: 14, letterSpacing: 1,
+          fontFamily: 'var(--f-ui)',
+          fontWeight: 800,
+          fontSize: 14,
+          letterSpacing: 1,
           cursor: 'pointer',
-        }}>
-        ⚡ Version minimale
+        }}
+      >
+        Version mini
         <div style={{ fontSize: 11, fontWeight: 400, color: 'var(--tx-2)', marginTop: 2, letterSpacing: 0 }}>
-          Garder la chaîne vivante
+          Garder la chaine vivante
         </div>
       </button>
-      <button onClick={() => onCheck('missed')}
+      <button
+        onClick={() => onCheck('missed')}
         style={{
-          padding: 'var(--s2)', background: 'none',
-          border: '1px solid var(--border)', borderRadius: 'var(--r2)',
-          color: 'var(--tx-3)', fontFamily: 'var(--f-ui)',
-          fontSize: 12, cursor: 'pointer', letterSpacing: 0.5,
-        }}>
-        ✗ Pas fait aujourd'hui
+          padding: 'var(--s2)',
+          background: 'none',
+          border: '1px solid var(--border)',
+          borderRadius: 'var(--r2)',
+          color: 'var(--tx-3)',
+          fontFamily: 'var(--f-ui)',
+          fontSize: 12,
+          cursor: 'pointer',
+          letterSpacing: 0.5,
+        }}
+      >
+        Pas fait aujourd hui
       </button>
     </div>
   )
 }
 
-/* ── Onboarding : choisir / créer une habitude ─────────────── */
-function HabitSetup({ onCreate }) {
-  const [step, setStep]         = useState('pick') // 'pick' | 'customize'
+function HabitSetup({ onCreate, coachReminder, onOpenSettings, onReplayOnboarding }) {
+  const [step, setStep] = useState('pick')
   const [selected, setSelected] = useState(null)
-  const [customFull, setCF]     = useState('')
-  const [customMini, setCM]     = useState('')
-  const [time, setTime]         = useState('08:00')
+  const [customFull, setCustomFull] = useState('')
+  const [customMini, setCustomMini] = useState('')
+  const [time, setTime] = useState('08:00')
 
   function confirm() {
-    const s = selected
+    const suggestion = selected
+    if (!suggestion) return
     const habit = {
-      id:          s.id + '_' + Date.now(),
-      emoji:       s.emoji,
-      name:        s.name,
-      fullAction:  s.id === 'custom' ? customFull : s.full,
-      miniAction:  s.id === 'custom' ? customMini : s.mini,
+      id: `${suggestion.id}_${Date.now()}`,
+      emoji: suggestion.emoji,
+      name: suggestion.name,
+      fullAction: suggestion.id === 'custom' ? customFull : suggestion.full,
+      miniAction: suggestion.id === 'custom' ? customMini : suggestion.mini,
       reminderTime: time,
-      createdAt:   todayStr(),
-      graduated:   false,
+      createdAt: todayStr(),
+      graduated: false,
+      enabled: true,
+      focus: suggestion.focus ?? null,
     }
     onCreate(habit)
   }
@@ -121,41 +193,45 @@ function HabitSetup({ onCreate }) {
       <div className="view-header">
         <div>
           <div className="view-title">HABITUDE</div>
-          <div className="view-subtitle">
-            {step === 'pick' ? 'Choisis une habitude' : 'Personnalise ton habitude'}
-          </div>
+          <div className="view-subtitle">{step === 'pick' ? 'Choisis une routine facile a tenir' : 'Ajuste ta routine de depart'}</div>
         </div>
       </div>
+
+      <CoachNotice reminder={coachReminder} onOpenSettings={onOpenSettings} onReplayOnboarding={onReplayOnboarding} />
 
       {step === 'pick' && (
         <>
           <div style={{ fontSize: 13, color: 'var(--tx-3)', lineHeight: 1.6, padding: '0 2px' }}>
-            Une seule habitude à la fois. Tu ne pourras pas en ajouter une autre avant 21 jours consécutifs.
+            Une seule habitude active a la fois. Le but est de revenir chaque jour, meme en version mini.
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--s2)' }}>
-            {HABIT_SUGGESTIONS.map((s) => (
-              <button key={s.id}
-                onClick={() => setSelected(s)}
+            {HABIT_SUGGESTIONS.map((suggestion) => (
+              <button
+                key={suggestion.id}
+                onClick={() => setSelected(suggestion)}
                 style={{
                   textAlign: 'left',
                   padding: 'var(--s3) var(--s4)',
-                  background: selected?.id === s.id ? 'var(--acc-dim)' : 'var(--surface)',
-                  border: `1px solid ${selected?.id === s.id ? 'var(--border-acc)' : 'var(--border)'}`,
-                  borderRadius: 'var(--r2)', cursor: 'pointer',
-                  display: 'flex', alignItems: 'center', gap: 'var(--s3)',
+                  background: selected?.id === suggestion.id ? 'var(--acc-dim)' : 'var(--surface)',
+                  border: `1px solid ${selected?.id === suggestion.id ? 'var(--border-acc)' : 'var(--border)'}`,
+                  borderRadius: 'var(--r2)',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 'var(--s3)',
                   transition: 'all var(--t-fast)',
-                }}>
-                <span style={{ fontSize: 24, flexShrink: 0 }}>{s.emoji}</span>
+                }}
+              >
+                <span style={{ fontSize: 24, flexShrink: 0 }}>{suggestion.emoji}</span>
                 <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontFamily: 'var(--f-ui)', fontWeight: 700, fontSize: 15,
-                    color: selected?.id === s.id ? 'var(--acc)' : 'var(--tx)' }}>
-                    {s.name}
+                  <div style={{ fontFamily: 'var(--f-ui)', fontWeight: 700, fontSize: 15, color: selected?.id === suggestion.id ? 'var(--acc)' : 'var(--tx)' }}>
+                    {suggestion.name}
                   </div>
-                  {s.id !== 'custom' && (
-                    <div style={{ fontSize: 11, color: 'var(--tx-3)', marginTop: 1 }}>{s.full}</div>
+                  {suggestion.id !== 'custom' && (
+                    <div style={{ fontSize: 11, color: 'var(--tx-3)', marginTop: 1 }}>{suggestion.full}</div>
                   )}
                 </div>
-                {selected?.id === s.id && (
+                {selected?.id === suggestion.id && (
                   <span style={{ color: 'var(--acc)', fontSize: 18 }}>✓</span>
                 )}
               </button>
@@ -163,7 +239,7 @@ function HabitSetup({ onCreate }) {
           </div>
           {selected && (
             <button className="save-btn" onClick={() => setStep('customize')}>
-              Continuer →
+              Continuer
             </button>
           )}
         </>
@@ -171,16 +247,13 @@ function HabitSetup({ onCreate }) {
 
       {step === 'customize' && selected && (
         <>
-          <div style={{
-            background: 'var(--surface)',
-            border: '1px solid var(--border)',
-            borderRadius: 'var(--r3)',
-            padding: 'var(--s4)',
-            display: 'flex', alignItems: 'center', gap: 'var(--s3)',
-          }}>
+          <div className="card" style={{ display: 'flex', alignItems: 'center', gap: 'var(--s3)' }}>
             <span style={{ fontSize: 32 }}>{selected.emoji}</span>
             <div>
               <div style={{ fontWeight: 700, fontSize: 16, color: 'var(--tx)' }}>{selected.name}</div>
+              <div style={{ fontSize: 12, color: 'var(--tx-2)', marginTop: 4 }}>
+                L objectif n est pas d etre parfait. L objectif est de revenir tous les jours.
+              </div>
             </div>
           </div>
 
@@ -189,30 +262,42 @@ function HabitSetup({ onCreate }) {
             {selected.id === 'custom' ? (
               <>
                 <div className="srow">
-                  <div className="srow-head"><span className="srow-name">Action complète</span></div>
-                  <input type="text"
-                    placeholder="ex : Marcher 15 minutes"
+                  <div className="srow-head"><span className="srow-name">Action complete</span></div>
+                  <input
+                    type="text"
+                    placeholder="Ex : marcher 15 minutes"
                     value={customFull}
-                    onChange={(e) => setCF(e.target.value)}
+                    onChange={(event) => setCustomFull(event.target.value)}
                     style={{
-                      background: 'var(--bg-2)', border: '1px solid var(--border-2)',
-                      borderRadius: 'var(--r2)', padding: '10px var(--s3)',
-                      color: 'var(--tx)', fontFamily: 'var(--f-ui)', fontSize: 14,
-                      outline: 'none', width: '100%',
+                      background: 'var(--bg-2)',
+                      border: '1px solid var(--border-2)',
+                      borderRadius: 'var(--r2)',
+                      padding: '10px var(--s3)',
+                      color: 'var(--tx)',
+                      fontFamily: 'var(--f-ui)',
+                      fontSize: 15,
+                      outline: 'none',
+                      width: '100%',
                     }}
                   />
                 </div>
                 <div className="srow">
-                  <div className="srow-head"><span className="srow-name">Version minimale ⚡</span></div>
-                  <input type="text"
-                    placeholder="ex : Marcher 3 minutes"
+                  <div className="srow-head"><span className="srow-name">Version mini</span></div>
+                  <input
+                    type="text"
+                    placeholder="Ex : marcher 3 minutes"
                     value={customMini}
-                    onChange={(e) => setCM(e.target.value)}
+                    onChange={(event) => setCustomMini(event.target.value)}
                     style={{
-                      background: 'var(--bg-2)', border: '1px solid var(--border-2)',
-                      borderRadius: 'var(--r2)', padding: '10px var(--s3)',
-                      color: 'var(--tx)', fontFamily: 'var(--f-ui)', fontSize: 14,
-                      outline: 'none', width: '100%',
+                      background: 'var(--bg-2)',
+                      border: '1px solid var(--border-2)',
+                      borderRadius: 'var(--r2)',
+                      padding: '10px var(--s3)',
+                      color: 'var(--tx)',
+                      fontFamily: 'var(--f-ui)',
+                      fontSize: 15,
+                      outline: 'none',
+                      width: '100%',
                     }}
                   />
                 </div>
@@ -220,13 +305,13 @@ function HabitSetup({ onCreate }) {
             ) : (
               <>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                  <div style={{ fontSize: 10, fontWeight: 800, letterSpacing: 0.8, textTransform: 'uppercase', color: 'var(--tx-3)' }}>Action complète</div>
+                  <div style={{ fontSize: 10, fontWeight: 800, letterSpacing: 0.8, textTransform: 'uppercase', color: 'var(--tx-3)' }}>Action complete</div>
                   <div style={{ fontFamily: 'var(--f-ui)', fontSize: 14, color: 'var(--tx)', padding: '10px var(--s3)', background: 'var(--bg-2)', borderRadius: 'var(--r2)', border: '1px solid var(--border)' }}>
                     {selected.full}
                   </div>
                 </div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                  <div style={{ fontSize: 10, fontWeight: 800, letterSpacing: 0.8, textTransform: 'uppercase', color: 'var(--tx-3)' }}>Version minimale ⚡</div>
+                  <div style={{ fontSize: 10, fontWeight: 800, letterSpacing: 0.8, textTransform: 'uppercase', color: 'var(--tx-3)' }}>Version mini</div>
                   <div style={{ fontFamily: 'var(--f-ui)', fontSize: 14, color: 'var(--acc)', padding: '10px var(--s3)', background: 'var(--acc-dim)', borderRadius: 'var(--r2)', border: '1px solid var(--border-acc)' }}>
                     {selected.mini}
                   </div>
@@ -238,18 +323,20 @@ function HabitSetup({ onCreate }) {
           <div className="sgroup">
             <div className="sgroup-title">Rappel quotidien</div>
             <div className="time-row">
-              <span className="time-label">🔔 Heure du rappel</span>
-              <input type="time" value={time} onChange={(e) => setTime(e.target.value)} />
+              <span className="time-label">Heure du rappel</span>
+              <input type="time" value={time} onChange={(event) => setTime(event.target.value)} />
             </div>
           </div>
 
           <div style={{ display: 'flex', gap: 'var(--s2)' }}>
-            <button className="btn-ghost" style={{ flex: 1 }} onClick={() => setStep('pick')}>← Retour</button>
-            <button className="save-btn" style={{ flex: 2 }}
+            <button className="btn-ghost" style={{ flex: 1 }} onClick={() => setStep('pick')}>Retour</button>
+            <button
+              className="save-btn"
+              style={{ flex: 2 }}
               onClick={confirm}
               disabled={selected.id === 'custom' && (!customFull || !customMini)}
             >
-              Commencer 🌱
+              Commencer
             </button>
           </div>
         </>
@@ -258,35 +345,44 @@ function HabitSetup({ onCreate }) {
   )
 }
 
-/* ── Vue habitude active ────────────────────────────────────── */
-function HabitActive({ habit, logs, onLog, onReset, graduated }) {
-  const today14    = useMemo(() => getLast14(logs), [logs])
+function HabitActive({ habit, logs, onLog, onReset, graduated, coachReminder, onOpenSettings, onReplayOnboarding }) {
+  const last14 = useMemo(() => getLast14(logs), [logs])
   const { streak, rescues, perfect } = useMemo(() => computeStreak(logs), [logs])
-  const todayLog   = logs.find((l) => l.date === todayStr()) ?? null
-  const ctx        = getContextMessage(streak, todayLog?.status)
-  const progress   = Math.min(100, Math.round((streak / GRADUATION_DAYS) * 100))
+  const todayLog = logs.find((log) => log.date === todayStr()) ?? null
+  const context = getContextMessage(streak, todayLog?.status)
+  const progress = Math.min(100, Math.round((streak / GRADUATION_DAYS) * 100))
 
   return (
     <div className="view">
       <div className="view-header">
         <div>
           <div className="view-title">HABITUDE</div>
-          <div className="view-subtitle">{graduated ? '✓ Habitude installée' : `Jour ${streak} / ${GRADUATION_DAYS}`}</div>
+          <div className="view-subtitle">{graduated ? 'Routine installee' : `Jour ${streak} / ${GRADUATION_DAYS}`}</div>
         </div>
         <div className="header-right">
           {streak > 0 && (
-            <div className="badge badge-streak">🔥 {streak}j</div>
+            <div className="badge badge-streak">Feu {streak}j</div>
           )}
         </div>
       </div>
 
-      {/* Carte habitude */}
+      <CoachNotice reminder={coachReminder} onOpenSettings={onOpenSettings} onReplayOnboarding={onReplayOnboarding} />
+
       <div className="card" style={{ background: 'var(--surface)', position: 'relative', overflow: 'hidden' }}>
-        <div style={{
-          position: 'absolute', top: -30, right: -20,
-          fontSize: 90, opacity: 0.06, lineHeight: 1,
-          pointerEvents: 'none', userSelect: 'none',
-        }}>{habit.emoji}</div>
+        <div
+          style={{
+            position: 'absolute',
+            top: -30,
+            right: -20,
+            fontSize: 90,
+            opacity: 0.06,
+            lineHeight: 1,
+            pointerEvents: 'none',
+            userSelect: 'none',
+          }}
+        >
+          {habit.emoji}
+        </div>
         <div style={{ display: 'flex', alignItems: 'flex-start', gap: 'var(--s3)' }}>
           <span style={{ fontSize: 36, flexShrink: 0 }}>{habit.emoji}</span>
           <div style={{ flex: 1 }}>
@@ -294,34 +390,35 @@ function HabitActive({ habit, logs, onLog, onReset, graduated }) {
               {habit.fullAction}
             </div>
             <div style={{ fontSize: 12, color: 'var(--acc)', display: 'flex', alignItems: 'center', gap: 4 }}>
-              <span>⚡</span>
+              <span>+</span>
               <span>Mini : {habit.miniAction}</span>
             </div>
           </div>
         </div>
       </div>
 
-      {/* Message contextuel */}
-      <div style={{
-        background: 'var(--surface)',
-        border: '1px solid var(--border)',
-        borderRadius: 'var(--r2)',
-        padding: 'var(--s3) var(--s4)',
-        display: 'flex', alignItems: 'center', gap: 'var(--s3)',
-      }}>
-        <span style={{ fontSize: 22 }}>{ctx.emoji}</span>
-        <span style={{ fontSize: 13, color: 'var(--tx-2)', lineHeight: 1.5 }}>{ctx.text}</span>
+      <div
+        style={{
+          background: 'var(--surface)',
+          border: '1px solid var(--border)',
+          borderRadius: 'var(--r2)',
+          padding: 'var(--s3) var(--s4)',
+          display: 'flex',
+          alignItems: 'center',
+          gap: 'var(--s3)',
+        }}
+      >
+        <span style={{ fontSize: 22 }}>{context.emoji}</span>
+        <span style={{ fontSize: 13, color: 'var(--tx-2)', lineHeight: 1.5 }}>{context.text}</span>
       </div>
 
-      {/* Check-in du jour */}
       <div className="log-form">
         <div className="form-title">
           {new Date().toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' })}
         </div>
-        <CheckInButtons todayLog={todayLog} onCheck={onLog} streak={streak} />
+        <CheckInButtons todayLog={todayLog} onCheck={onLog} />
       </div>
 
-      {/* Progression 21j */}
       {!graduated && (
         <div className="card">
           <div className="card-title">Progression vers installation</div>
@@ -334,118 +431,143 @@ function HabitActive({ habit, logs, onLog, onReset, graduated }) {
             </div>
           </div>
           <div style={{ fontSize: 11, color: 'var(--tx-3)', textAlign: 'center' }}>
-            {streak}/{GRADUATION_DAYS} jours · {Math.max(0, GRADUATION_DAYS - streak)} restants pour installer l'habitude
+            {streak}/{GRADUATION_DAYS} jours - {Math.max(0, GRADUATION_DAYS - streak)} restants pour ancrer la routine
           </div>
         </div>
       )}
 
       {graduated && (
-        <div style={{
-          background: 'var(--ok-dim)', border: '1px solid rgba(52,211,153,0.2)',
-          borderRadius: 'var(--r3)', padding: 'var(--s4)', textAlign: 'center',
-        }}>
+        <div
+          style={{
+            background: 'var(--ok-dim)',
+            border: '1px solid rgba(52,211,153,0.2)',
+            borderRadius: 'var(--r3)',
+            padding: 'var(--s4)',
+            textAlign: 'center',
+          }}
+        >
           <div style={{ fontSize: 36, marginBottom: 8 }}>🏆</div>
           <div style={{ fontWeight: 800, fontSize: 17, color: 'var(--ok)', marginBottom: 4 }}>
-            Habitude installée !
+            Routine installee
           </div>
           <div style={{ fontSize: 12, color: 'var(--tx-2)', marginBottom: 'var(--s3)' }}>
-            {streak} jours consécutifs. Cette habitude fait partie de toi. Tu peux en créer une nouvelle.
+            {streak} jours consecutifs. Tu peux continuer ou lancer une nouvelle habitude.
           </div>
-          <button className="save-btn" style={{ background: 'linear-gradient(135deg, var(--ok), #059669)' }}
-            onClick={onReset}>
-            Créer une nouvelle habitude →
+          <button className="save-btn" style={{ background: 'linear-gradient(135deg, var(--ok), #059669)' }} onClick={onReset}>
+            Creer une nouvelle habitude
           </button>
         </div>
       )}
 
-      {/* Chaîne 14 jours */}
       <div className="card">
-        <div className="card-title">Chaîne — 14 derniers jours</div>
-        <ChainDots days={today14} />
+        <div className="card-title">Regularite - 14 derniers jours</div>
+        <ChainDots days={last14} />
         <div style={{ display: 'flex', gap: 'var(--s4)', marginTop: 'var(--s3)', justifyContent: 'center' }}>
           {[
-            { color: 'var(--acc)',      label: `${perfect} Fait` },
+            { color: 'var(--acc)', label: `${perfect} Fait` },
             { color: 'var(--p-color)', label: `${rescues} Mini` },
             { color: 'var(--surface-3)', label: 'Vide', border: '1px solid var(--border)' },
-          ].map((l) => (
-            <div key={l.label} style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-              <div style={{ width: 10, height: 10, borderRadius: '50%', background: l.color, border: l.border, flexShrink: 0 }} />
-              <span style={{ fontSize: 11, color: 'var(--tx-3)' }}>{l.label}</span>
+          ].map((legend) => (
+            <div key={legend.label} style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+              <div style={{ width: 10, height: 10, borderRadius: '50%', background: legend.color, border: legend.border, flexShrink: 0 }} />
+              <span style={{ fontSize: 11, color: 'var(--tx-3)' }}>{legend.label}</span>
             </div>
           ))}
         </div>
       </div>
 
-      {/* Stats */}
       <div className="stat-grid">
         <div className="stat-card">
-          <div className="stat-lbl">Chaîne actuelle</div>
+          <div className="stat-lbl">Chaine actuelle</div>
           <div className="stat-val">{streak}<span className="stat-unit">j</span></div>
         </div>
         <div className="stat-card">
-          <div className="stat-lbl">Rescues utilisés</div>
+          <div className="stat-lbl">Rescues utilises</div>
           <div className="stat-val" style={{ color: rescues > 0 ? 'var(--p-color)' : undefined }}>
-            {rescues}<span className="stat-unit">⚡</span>
+            {rescues}<span className="stat-unit">mini</span>
           </div>
         </div>
         <div className="stat-card">
-          <div className="stat-lbl">Jours parfaits</div>
+          <div className="stat-lbl">Jours pleins</div>
           <div className="stat-val" style={{ color: 'var(--acc)' }}>
-            {perfect}<span className="stat-unit">✓</span>
+            {perfect}<span className="stat-unit">ok</span>
           </div>
         </div>
         <div className="stat-card">
-          <div className="stat-lbl">Début</div>
+          <div className="stat-lbl">Debut</div>
           <div className="stat-val" style={{ fontSize: 14 }}>
-            {new Date(habit.createdAt + 'T12:00').toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' })}
+            {new Date(`${habit.createdAt}T12:00`).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' })}
           </div>
         </div>
       </div>
 
-      {/* Réinitialiser */}
-      <button className="btn-ghost" onClick={() => {
-        if (confirm('Abandonner cette habitude et en commencer une nouvelle ?')) onReset()
-      }}>
-        Changer d'habitude
+      <button
+        className="btn-ghost"
+        onClick={() => {
+          if (confirm("Abandonner cette habitude et en commencer une nouvelle ?")) onReset()
+        }}
+      >
+        Changer d habitude
       </button>
     </div>
   )
 }
 
-/* ── Export principal ───────────────────────────────────────── */
-export default function Habit() {
-  const [habit, setHabit]     = useState(() => loadHabit())
-  const [logs,  setLogs]      = useState(() => loadHabitLogs())
+export default function Habit({ coachReminder = null, onOpenSettings = () => {}, onReplayOnboarding = () => {} }) {
+  const [habit, setHabit] = useState(() => loadHabit())
+  const [logs, setLogs] = useState(() => loadHabitLogs())
 
-  function createHabit(h) {
-    setHabit(h); saveHabit(h)
-    setLogs([]); saveHabitLogs([])
+  function createHabit(nextHabit) {
+    setHabit(nextHabit)
+    saveHabit(nextHabit)
+    setLogs([])
+    saveHabitLogs([])
   }
 
   function logToday(status) {
     if (status === null) {
-      // Correction : retirer le log du jour
-      const updated = logs.filter((l) => l.date !== todayStr())
-      setLogs(updated); saveHabitLogs(updated); return
+      const updated = logs.filter((log) => log.date !== todayStr())
+      setLogs(updated)
+      saveHabitLogs(updated)
+      return
     }
-    const entry   = { date: todayStr(), status, ts: Date.now() }
-    const updated = [...logs.filter((l) => l.date !== todayStr()), entry]
-    setLogs(updated); saveHabitLogs(updated)
+
+    const entry = { date: todayStr(), status, ts: Date.now() }
+    const updated = [...logs.filter((log) => log.date !== todayStr()), entry]
+    setLogs(updated)
+    saveHabitLogs(updated)
   }
 
   function resetHabit() {
-    setHabit(null); saveHabit(null)
-    setLogs([]); saveHabitLogs([])
+    setHabit(null)
+    saveHabit(null)
+    setLogs([])
+    saveHabitLogs([])
   }
 
-  if (!habit) return <HabitSetup onCreate={createHabit} />
+  if (!habit) {
+    return (
+      <HabitSetup
+        onCreate={createHabit}
+        coachReminder={coachReminder}
+        onOpenSettings={onOpenSettings}
+        onReplayOnboarding={onReplayOnboarding}
+      />
+    )
+  }
 
   const graduated = isGraduated(logs)
+
   return (
     <HabitActive
-      habit={habit} logs={logs}
-      onLog={logToday} onReset={resetHabit}
+      habit={habit}
+      logs={logs}
+      onLog={logToday}
+      onReset={resetHabit}
       graduated={graduated}
+      coachReminder={coachReminder}
+      onOpenSettings={onOpenSettings}
+      onReplayOnboarding={onReplayOnboarding}
     />
   )
 }

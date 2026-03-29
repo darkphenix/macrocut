@@ -65,6 +65,7 @@ function sanitizeManual(input) {
 
 function sanitizeItem(input, idx = 0) {
   const item = input ?? {}
+  const source = typeof item.source === 'string' ? item.source : null
   return {
     id: item.id ?? `legacy_${idx}_${String(item.name ?? 'food').slice(0, 16)}`,
     name: String(item.name ?? 'Aliment'),
@@ -73,6 +74,7 @@ function sanitizeItem(input, idx = 0) {
     protein: toNumber(item.protein, 0),
     carbs: toNumber(item.carbs, 0),
     fat: toNumber(item.fat, 0),
+    source,
   }
 }
 

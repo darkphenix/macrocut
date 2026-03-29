@@ -7,12 +7,12 @@ export default function History({ logs, onDelete, targets }) {
   if (!logs.length) return (
     <div className="view">
       <div className="view-header"><div>
-        <div className="view-title">HISTORIQUE</div>
+        <div className="view-title">JOURNAL</div>
         <div className="view-subtitle">Aucune entrée</div>
       </div></div>
       <div className="empty">
         <div className="empty-icon">📋</div>
-        <div className="empty-txt">Log ton premier jour depuis l'onglet Aujourd'hui ou Scanner.</div>
+        <div className="empty-txt">Commence par ajouter un repas ou ton poids dans Aujourd'hui.</div>
       </div>
     </div>
   )
@@ -21,8 +21,8 @@ export default function History({ logs, onDelete, targets }) {
     <div className="view">
       <div className="view-header">
         <div>
-          <div className="view-title">HISTORIQUE</div>
-          <div className="view-subtitle">{logs.length} entrée{logs.length > 1 ? 's' : ''}</div>
+          <div className="view-title">JOURNAL</div>
+          <div className="view-subtitle">{logs.length} jour{logs.length > 1 ? 's' : ''} enregistres</div>
         </div>
       </div>
 

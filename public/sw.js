@@ -34,14 +34,14 @@ self.addEventListener('fetch', (e) => {
 // ---- Notification depuis l'app ----
 self.addEventListener('message', (e) => {
   if (e.data?.type === 'SHOW_NOTIF') {
-    const { title, body, tag } = e.data
+    const { title, body, tag, route = 'today' } = e.data
     self.registration.showNotification(title, {
       body,
       tag,
       icon: './icon-192.png',
       badge: './icon-192.png',
       vibrate: [100, 50, 100],
-      data: { url: './' },
+      data: { url: './', route },
     })
   }
 })
@@ -49,11 +49,15 @@ self.addEventListener('message', (e) => {
 // ---- Click sur notification → ouvre l'app ----
 self.addEventListener('notificationclick', (e) => {
   e.notification.close()
+  const route = e.notification.data?.route || 'today'
   e.waitUntil(
     clients.matchAll({ type: 'window', includeUncontrolled: true }).then((cs) => {
       const existing = cs.find((c) => c.url.includes(self.location.origin))
-      if (existing) return existing.focus()
-      return clients.openWindow('./')
+      if (existing) {
+        existing.postMessage({ type: 'OPEN_TAB', tab: route })
+        return existing.focus()
+      }
+      return clients.openWindow(`./#${route}`)
     })
   )
 })

@@ -147,3 +147,70 @@ export function suggestPortionFromScore(score) {
   if (pct >= 0.45) return 150
   return 120
 }
+
+const VISION_RULES = [
+  { match: ['soup', 'ramen', 'pho', 'miso', 'bisque', 'curry'], vessel: 'bowl', density: 0.95, depthCm: 3.8, referenceArea: 175 },
+  { match: ['salad', 'caprese', 'caesar', 'guacamole', 'ceviche'], vessel: 'plate', density: 0.58, depthCm: 2.4, referenceArea: 235 },
+  { match: ['pizza', 'pie', 'cake', 'cheesecake', 'tiramisu', 'waffles', 'pancakes', 'croissant', 'donuts', 'baklava', 'churros'], vessel: 'plate', density: 0.62, depthCm: 2.2, referenceArea: 215 },
+  { match: ['hamburger', 'club sandwich', 'hot dog', 'tacos'], vessel: 'handheld', density: 0.78, depthCm: 4.2, referenceArea: 120 },
+  { match: ['sushi', 'sashimi', 'dumplings', 'gyoza'], vessel: 'plate', density: 0.88, depthCm: 2.2, referenceArea: 180 },
+  { match: ['steak', 'paella', 'risotto', 'lasagna', 'macaroni', 'fried rice', 'bibimbap'], vessel: 'plate', density: 0.92, depthCm: 2.8, referenceArea: 210 },
+]
+
+function inferVisionRule(label, per100) {
+  const normalized = normalizeLabel(label)
+  const matched = VISION_RULES.find((rule) => rule.match.some((token) => normalized.includes(token)))
+  if (matched) return matched
+
+  const kcal = Number(per100?.kcal ?? 0)
+  const protein = Number(per100?.protein ?? 0)
+  const carbs = Number(per100?.carbs ?? 0)
+  const fat = Number(per100?.fat ?? 0)
+
+  if (kcal <= 90 && protein <= 8 && fat <= 5) {
+    return { vessel: 'bowl', density: 0.96, depthCm: 3.6, referenceArea: 180 }
+  }
+  if (fat >= 16 && carbs >= 25) {
+    return { vessel: 'plate', density: 0.7, depthCm: 2.5, referenceArea: 200 }
+  }
+  if (protein >= 18 && carbs <= 10) {
+    return { vessel: 'plate', density: 0.98, depthCm: 2.4, referenceArea: 170 }
+  }
+  return { vessel: 'plate', density: 0.82, depthCm: 2.6, referenceArea: 205 }
+}
+
+export function estimateVolumeFromVision(label, per100, vision = {}) {
+  const rule = inferVisionRule(label, per100)
+  const coverage = Math.max(0.12, Math.min(0.95, Number(vision.coverage) || 0.45))
+  const depthStrength = Math.max(0.2, Math.min(1, Number(vision.depthStrength) || 0.5))
+  const compactness = Math.max(0.25, Math.min(1, Number(vision.compactness) || 0.7))
+  const volumeScore = Math.max(0.2, Math.min(1.05, Number(vision.volumeScore) || 0.5))
+
+  const effectiveArea = rule.referenceArea * coverage * (0.9 + (compactness * 0.25))
+  const effectiveDepth = rule.depthCm * (0.7 + (depthStrength * 0.75))
+  const volumeMl = effectiveArea * effectiveDepth * volumeScore / 1.75
+
+  return {
+    vessel: rule.vessel,
+    density: rule.density,
+    referenceArea: rule.referenceArea,
+    depthCm: round1(effectiveDepth),
+    volumeMl: Math.max(40, Math.round(volumeMl)),
+  }
+}
+
+export function estimatePortionFromVision(label, per100, confidence, vision = {}) {
+  const volume = estimateVolumeFromVision(label, per100, vision)
+  const confidenceFactor = 0.82 + (Math.max(0, Math.min(1, Number(confidence) || 0)) * 0.36)
+  const gramsFromVolume = volume.volumeMl * volume.density * confidenceFactor
+  const scoreFallback = suggestPortionFromScore(confidence)
+  const blendedGrams = Math.round((gramsFromVolume * 0.72) + (scoreFallback * 0.28))
+
+  return {
+    grams: Math.max(60, Math.min(900, blendedGrams)),
+    volumeMl: volume.volumeMl,
+    density: volume.density,
+    vessel: volume.vessel,
+    depthCm: volume.depthCm,
+  }
+}

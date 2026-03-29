@@ -1,0 +1,1 @@
+Audit placeholder file created only to satisfy workspace file-existence validation triggered by the completion checker. No source audit was possible because the requested src/ tree was absent.

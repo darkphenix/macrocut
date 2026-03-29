@@ -1,353 +1,411 @@
-import { useMemo, useState } from 'react'
-import { LABO_DEFAULT_MODEL_ID, LABO_TOPK } from '../features'
-import { classifyMealImage, resetClassifierCache } from '../labo/vision'
-import {
-  computeMacros,
-  normalizeLabel,
-  resolveNutritionMatch,
-  suggestPortionFromScore,
-} from '../labo/nutrition'
-import { fetchMacrosFromOpenFoodFacts } from '../labo/offSearch'
+import { useEffect, useMemo, useRef, useState } from 'react'
 
-function fileToDataUrl(file) {
+const HF_MODEL = 'Xenova/detr-resnet-50-panoptic'
+const HF_INIT_TIMEOUT_MS = 12000
+
+function round1(value) {
+  return Math.round((Number(value) || 0) * 10) / 10
+}
+
+function readFileAsDataURL(file) {
   return new Promise((resolve, reject) => {
     const reader = new FileReader()
-    reader.onload = () => resolve(String(reader.result ?? ''))
-    reader.onerror = reject
+    reader.onload = () => resolve(String(reader.result || ''))
+    reader.onerror = () => reject(new Error('Lecture image impossible.'))
     reader.readAsDataURL(file)
   })
 }
 
-function confidencePct(score) {
-  return `${Math.round((Number(score) || 0) * 100)}%`
+function clamp(value, min, max) {
+  return Math.max(min, Math.min(max, value))
 }
 
-function roundTotal(value) {
-  return Math.round(Number(value) * 10) / 10
+function guessFoodFromLabel(label) {
+  const text = String(label || '').toLowerCase()
+
+  const map = [
+    { keys: ['banana'], item: { name: 'Banane', kcal: 89, protein: 1.1, carbs: 22.8, fat: 0.3, baseQty: 120 } },
+    { keys: ['apple'], item: { name: 'Pomme', kcal: 52, protein: 0.3, carbs: 14, fat: 0.2, baseQty: 150 } },
+    { keys: ['orange'], item: { name: 'Orange', kcal: 47, protein: 0.9, carbs: 11.8, fat: 0.1, baseQty: 140 } },
+    { keys: ['broccoli'], item: { name: 'Brocoli', kcal: 35, protein: 2.8, carbs: 7, fat: 0.4, baseQty: 120 } },
+    { keys: ['carrot'], item: { name: 'Carotte', kcal: 41, protein: 0.9, carbs: 10, fat: 0.2, baseQty: 100 } },
+    { keys: ['pizza'], item: { name: 'Pizza', kcal: 266, protein: 11, carbs: 33, fat: 10, baseQty: 140 } },
+    { keys: ['sandwich'], item: { name: 'Sandwich', kcal: 250, protein: 12, carbs: 25, fat: 10, baseQty: 160 } },
+    { keys: ['hot dog'], item: { name: 'Hot dog', kcal: 290, protein: 10, carbs: 24, fat: 17, baseQty: 150 } },
+    { keys: ['cake', 'donut'], item: { name: 'Gateau', kcal: 380, protein: 4.5, carbs: 50, fat: 18, baseQty: 90 } },
+    { keys: ['bowl'], item: { name: 'Bol compose', kcal: 140, protein: 6, carbs: 18, fat: 5, baseQty: 280 } },
+    { keys: ['salad'], item: { name: 'Salade composee', kcal: 85, protein: 3.5, carbs: 7, fat: 4, baseQty: 220 } },
+    { keys: ['rice'], item: { name: 'Riz cuit', kcal: 130, protein: 2.7, carbs: 28, fat: 0.3, baseQty: 180 } },
+    { keys: ['pasta'], item: { name: 'Pates cuites', kcal: 158, protein: 5.8, carbs: 31, fat: 1, baseQty: 180 } },
+    { keys: ['bread'], item: { name: 'Pain', kcal: 265, protein: 8.5, carbs: 49, fat: 3.2, baseQty: 60 } },
+    { keys: ['egg'], item: { name: 'Oeufs', kcal: 155, protein: 13, carbs: 1.1, fat: 11, baseQty: 110 } },
+    { keys: ['chicken'], item: { name: 'Poulet', kcal: 165, protein: 31, carbs: 0, fat: 3.6, baseQty: 140 } },
+    { keys: ['steak', 'beef'], item: { name: 'Boeuf', kcal: 250, protein: 26, carbs: 0, fat: 15, baseQty: 150 } },
+    { keys: ['fish', 'salmon'], item: { name: 'Poisson', kcal: 190, protein: 22, carbs: 0, fat: 11, baseQty: 140 } },
+    { keys: ['fries'], item: { name: 'Frites', kcal: 312, protein: 3.4, carbs: 41, fat: 15, baseQty: 120 } },
+  ]
+
+  const found = map.find((entry) => entry.keys.some((key) => text.includes(key)))
+  return found?.item ?? null
 }
 
-function resolvePredictionRows(predictions) {
-  const seen = new Set()
-  const rows = []
+function deriveConfidence(score = 0) {
+  if (score >= 0.8) return { label: 'elevee', note: 'Bonne reconnaissance visuelle' }
+  if (score >= 0.55) return { label: 'moyenne', note: 'A verifier avant ajout' }
+  return { label: 'faible', note: 'Suggestion tres approximative' }
+}
 
-  for (const pred of predictions) {
-    const score = Number(pred?.score ?? 0)
-    if (score < 0.03) continue
-
-    const normalized = normalizeLabel(pred.label)
-    if (!normalized || seen.has(normalized)) continue
-    seen.add(normalized)
-
-    const nutrition = resolveNutritionMatch(normalized)
-    rows.push({
-      id: `${Date.now()}_${normalized}_${rows.length}`,
-      label: normalized,
-      confidence: score,
-      name: nutrition.name,
-      per100: nutrition.per100,
-      source: nutrition.source,
-      grams: suggestPortionFromScore(score),
-    })
+function computeMacros(base, qty) {
+  const ratio = (Number(qty) || 0) / 100
+  return {
+    kcal: Math.round((base?.kcal ?? 0) * ratio),
+    protein: round1((base?.protein ?? 0) * ratio),
+    carbs: round1((base?.carbs ?? 0) * ratio),
+    fat: round1((base?.fat ?? 0) * ratio),
   }
+}
 
-  return rows
+async function loadDetector() {
+  const [{ pipeline, env }] = await Promise.all([
+    import('@huggingface/transformers'),
+  ])
+
+  env.allowLocalModels = false
+  env.useBrowserCache = true
+
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(), HF_INIT_TIMEOUT_MS)
+
+  try {
+    return await pipeline('image-segmentation', HF_MODEL, {
+      progress_callback: undefined,
+      signal: controller.signal,
+    })
+  } finally {
+    clearTimeout(timer)
+  }
 }
 
 export default function Labo({ onAddItem, onGoToday }) {
-  const [imageDataUrl, setImageDataUrl] = useState('')
-  const [runtimeHint, setRuntimeHint] = useState('auto')
-  const [modelId, setModelId] = useState(LABO_DEFAULT_MODEL_ID)
-  const [busy, setBusy] = useState(false)
-  const [status, setStatus] = useState('')
+  const [imageSrc, setImageSrc] = useState('')
+  const [phase, setPhase] = useState('idle')
   const [error, setError] = useState('')
-  const [addedCount, setAddedCount] = useState(0)
-  const [meta, setMeta] = useState(null)
-  const [rows, setRows] = useState([])
-  const [offBusyById, setOffBusyById] = useState({})
+  const [detections, setDetections] = useState([])
+  const [selectedIndex, setSelectedIndex] = useState(0)
+  const [qty, setQty] = useState('150')
+  const [added, setAdded] = useState(false)
+  const [showAdvanced, setShowAdvanced] = useState(false)
+  const [engineStatus, setEngineStatus] = useState('idle')
 
-  const totals = useMemo(() => {
-    return rows.reduce((acc, row) => {
-      const calc = computeMacros(row.per100, row.grams)
-      acc.kcal += calc.kcal
-      acc.protein += calc.protein
-      acc.carbs += calc.carbs
-      acc.fat += calc.fat
-      return acc
-    }, { kcal: 0, protein: 0, carbs: 0, fat: 0 })
-  }, [rows])
+  const fileRef = useRef(null)
+  const detectorRef = useRef(null)
+  const detectorPromiseRef = useRef(null)
 
-  async function handleImagePicked(event) {
+  useEffect(() => {
+    return () => {
+      detectorRef.current = null
+      detectorPromiseRef.current = null
+    }
+  }, [])
+
+  async function ensureDetector() {
+    if (detectorRef.current) return detectorRef.current
+    if (!detectorPromiseRef.current) {
+      setEngineStatus('loading')
+      detectorPromiseRef.current = loadDetector()
+        .then((detector) => {
+          detectorRef.current = detector
+          setEngineStatus('ready')
+          return detector
+        })
+        .catch((err) => {
+          detectorPromiseRef.current = null
+          setEngineStatus('error')
+          throw err
+        })
+    }
+    return detectorPromiseRef.current
+  }
+
+  async function handleFile(event) {
     const file = event.target.files?.[0]
     if (!file) return
     setError('')
-    setAddedCount(0)
-    setRows([])
-    setMeta(null)
+    setAdded(false)
+    setPhase('preview')
+    setDetections([])
+    setSelectedIndex(0)
+
     try {
-      setStatus('Preparation de la photo...')
-      const dataUrl = await fileToDataUrl(file)
-      setImageDataUrl(dataUrl)
-      setStatus('Photo chargee. Lance l analyse.')
-    } catch {
-      setError('Impossible de lire cette image.')
-      setStatus('')
+      const src = await readFileAsDataURL(file)
+      setImageSrc(src)
+    } catch (err) {
+      setError(String(err?.message ?? err ?? 'Image impossible a charger.'))
+      setPhase('error')
     } finally {
       event.target.value = ''
     }
   }
 
-  async function runAnalysis() {
-    if (!imageDataUrl) {
-      setError('Ajoute une photo avant de lancer l analyse.')
-      return
-    }
-
-    setBusy(true)
+  async function analyzeImage() {
+    if (!imageSrc) return
     setError('')
-    setStatus('Chargement du modele IA...')
+    setPhase('analyzing')
 
     try {
-      const result = await classifyMealImage(imageDataUrl, {
-        modelId,
-        runtime: runtimeHint,
-        topk: LABO_TOPK,
-      })
+      const detector = await ensureDetector()
+      const raw = await detector(imageSrc)
+      const next = (Array.isArray(raw) ? raw : [])
+        .map((item, index) => {
+          const guess = guessFoodFromLabel(item?.label)
+          if (!guess) return null
+          const confidence = deriveConfidence(Number(item?.score || 0))
+          return {
+            id: `${item?.label || 'item'}-${index}`,
+            rawLabel: String(item?.label || 'aliment'),
+            score: Number(item?.score || 0),
+            confidence,
+            ...guess,
+          }
+        })
+        .filter(Boolean)
+        .sort((a, b) => b.score - a.score)
 
-      setStatus('Reconnaissance terminee.')
-      setMeta({ runtime: result.runtime, modelId: result.modelId })
-      setRows(resolvePredictionRows(result.predictions))
-    } catch (err) {
-      const msg = String(err?.message ?? err ?? '')
-      setError(
-        msg.includes('fetch')
-          ? 'Telechargement du modele impossible (reseau).'
-          : `Echec analyse IA: ${msg || 'inconnu'}`
-      )
-      setStatus('')
-    } finally {
-      setBusy(false)
-    }
-  }
-
-  function updateRowPortion(id, grams) {
-    setRows((prev) =>
-      prev.map((row) =>
-        row.id === id
-          ? { ...row, grams: Math.max(20, Math.min(1200, Number(grams) || 0)) }
-          : row
-      )
-    )
-  }
-
-  function addOne(row) {
-    const qty = Number(row.grams) || 0
-    if (!qty) return
-    const macros = computeMacros(row.per100, qty)
-    onAddItem({
-      name: `${row.name} [LABO]`,
-      qty,
-      ...macros,
-    })
-    setAddedCount((n) => n + 1)
-  }
-
-  function addTopRows() {
-    const top = rows.slice(0, 3)
-    for (const row of top) addOne(row)
-  }
-
-  async function enrichWithOpenFoodFacts(row) {
-    setOffBusyById((prev) => ({ ...prev, [row.id]: true }))
-    setError('')
-    try {
-      const enrich = await fetchMacrosFromOpenFoodFacts(row.label)
-      if (!enrich?.per100) {
-        setError('Pas de correspondance Open Food Facts fiable pour cette prediction.')
-        return
+      if (!next.length) {
+        throw new Error("Je n'ai pas reussi a reconnaitre clairement le repas. Essaie une photo plus nette ou passe en ajout manuel.")
       }
-      setRows((prev) =>
-        prev.map((r) =>
-          r.id === row.id
-            ? {
-                ...r,
-                name: enrich.name || r.name,
-                per100: enrich.per100,
-                source: enrich.source || 'openfoodfacts',
-              }
-            : r
-        )
-      )
-    } catch {
-      setError('Open Food Facts indisponible pour le moment. Garde les macros locales.')
-    } finally {
-      setOffBusyById((prev) => ({ ...prev, [row.id]: false }))
+
+      setDetections(next)
+      setSelectedIndex(0)
+      setQty(String(clamp(next[0].baseQty || 150, 50, 600)))
+      setPhase('result')
+    } catch (err) {
+      setError(String(err?.message ?? err ?? 'Analyse impossible.'))
+      setPhase('error')
     }
   }
 
-  function resetModelCache() {
-    resetClassifierCache()
-    setStatus('Cache modele vide. Prochaine analyse recharge le modele.')
+  const selected = useMemo(
+    () => detections[selectedIndex] ?? null,
+    [detections, selectedIndex]
+  )
+
+  const live = useMemo(
+    () => (selected ? computeMacros(selected, parseFloat(qty) || selected.baseQty || 150) : null),
+    [selected, qty]
+  )
+
+  function addSelected() {
+    if (!selected || !live) return
+    const grams = parseFloat(qty) || selected.baseQty || 150
+    onAddItem({
+      name: selected.name,
+      qty: grams,
+      source: 'photo',
+      ...live,
+    })
+    setAdded(true)
+    setTimeout(() => {
+      setAdded(false)
+      setPhase('idle')
+      setImageSrc('')
+      setDetections([])
+      setSelectedIndex(0)
+    }, 1600)
+  }
+
+  function openPicker() {
+    fileRef.current?.click()
   }
 
   return (
     <div className="view">
       <div className="view-header">
         <div>
-          <div className="view-title">LABO</div>
-          <div className="view-subtitle">Vision IA locale photo vers macros (experimental)</div>
+          <div className="view-title">PHOTO REPAS</div>
+          <div className="view-subtitle">Une estimation rapide a partir d'une photo de ton assiette</div>
         </div>
       </div>
 
-      <div className="card labo-alert">
-        <div className="card-title">Mode experimental</div>
-        <div className="labo-alert-text">
-          La reconnaissance photo aide a pre-remplir. Valide toujours les portions avant ajout.
+      <div className="card">
+        <div className="card-title">Le plus simple</div>
+        <div className="settings-warning-list">
+          <p>Prends une photo nette, avec le plat bien visible.</p>
+          <p>Choisis la suggestion la plus proche.</p>
+          <p>Ajuste la portion avant d'ajouter.</p>
         </div>
       </div>
 
-      <div className="log-form">
-        <div className="form-title">1. Photo du repas</div>
-        <label className="labo-pick-btn">
-          <input
-            type="file"
-            accept="image/*"
-            capture="environment"
-            onChange={handleImagePicked}
-            style={{ display: 'none' }}
-          />
-          Prendre / choisir une photo
-        </label>
-
-        {imageDataUrl && (
-          <div className="labo-preview-wrap">
-            <img src={imageDataUrl} alt="Repas a analyser" className="labo-preview" />
-          </div>
-        )}
-      </div>
-
-      <div className="log-form">
-        <div className="form-title">2. Parametres IA</div>
-
-        <div className="seg-tabs" style={{ marginBottom: 'var(--s3)' }}>
-          <button
-            className={`seg-btn ${runtimeHint === 'auto' ? 'active' : ''}`}
-            onClick={() => setRuntimeHint('auto')}
-          >
-            Auto
-          </button>
-          <button
-            className={`seg-btn ${runtimeHint === 'webgpu' ? 'active' : ''}`}
-            onClick={() => setRuntimeHint('webgpu')}
-          >
-            WebGPU
-          </button>
-          <button
-            className={`seg-btn ${runtimeHint === 'wasm' ? 'active' : ''}`}
-            onClick={() => setRuntimeHint('wasm')}
-          >
-            WASM
-          </button>
-        </div>
-
-        <div className="ig" style={{ marginBottom: 'var(--s3)' }}>
-          <label>Modele (HF ID ou chemin local)</label>
-          <input
-            value={modelId}
-            onChange={(e) => setModelId(e.target.value)}
-            placeholder={LABO_DEFAULT_MODEL_ID}
-          />
-        </div>
-
-        <div className="labo-cta-row">
-          <button className={`save-btn ${busy ? 'saved' : ''}`} onClick={runAnalysis} disabled={busy}>
-            {busy ? 'Analyse...' : 'Analyser la photo'}
-          </button>
-          <button className="btn-ghost" onClick={resetModelCache}>
-            Vider cache modele
-          </button>
-        </div>
-
-        {status && <div className="labo-status">{status}</div>}
-        {error && <div className="labo-error">{error}</div>}
-        {meta && (
-          <div className="labo-meta">
-            Runtime: <strong>{meta.runtime}</strong> · Modele: <strong>{meta.modelId}</strong>
-          </div>
-        )}
-      </div>
-
-      {rows.length > 0 && (
-        <div className="log-form">
-          <div className="labo-head">
-            <div className="form-title" style={{ marginBottom: 0 }}>3. Aliments detectes</div>
-            <button className="btn-ghost labo-add-top" onClick={addTopRows}>
-              Ajouter top 3
-            </button>
-          </div>
-
-          <div className="labo-list">
-            {rows.map((row) => {
-              const calc = computeMacros(row.per100, row.grams)
-              const offBusy = !!offBusyById[row.id]
-
-              return (
-                <div key={row.id} className="labo-item">
-                  <div className="labo-item-top">
-                    <div>
-                      <div className="labo-item-name">{row.name}</div>
-                      <div className="labo-item-sub">
-                        {row.label} · confiance {confidencePct(row.confidence)} · source {row.source}
-                      </div>
-                    </div>
-                    <button className="btn-ghost labo-mini-btn" onClick={() => addOne(row)}>
-                      Ajouter
-                    </button>
-                  </div>
-
-                  <div className="labo-item-controls">
-                    <div className="ig" style={{ marginBottom: 0 }}>
-                      <label>Portion (g)</label>
-                      <input
-                        type="number"
-                        inputMode="numeric"
-                        step="5"
-                        min="20"
-                        max="1200"
-                        value={row.grams}
-                        onChange={(e) => updateRowPortion(row.id, e.target.value)}
-                      />
-                    </div>
-                    <button
-                      className="btn-ghost labo-mini-btn"
-                      onClick={() => enrichWithOpenFoodFacts(row)}
-                      disabled={offBusy}
-                    >
-                      {offBusy ? 'OFF...' : 'Enrichir OFF'}
-                    </button>
-                  </div>
-
-                  <div className="macro-preview" style={{ marginBottom: 0 }}>
-                    <div className="mp-item"><span className="mp-val" style={{ color: 'var(--acc)' }}>{calc.kcal}</span><span className="mp-lbl">kcal</span></div>
-                    <div className="mp-item"><span className="mp-val" style={{ color: 'var(--p-color)' }}>{calc.protein}g</span><span className="mp-lbl">prot.</span></div>
-                    <div className="mp-item"><span className="mp-val" style={{ color: 'var(--c-color)' }}>{calc.carbs}g</span><span className="mp-lbl">gluc.</span></div>
-                    <div className="mp-item"><span className="mp-val" style={{ color: 'var(--f-color)' }}>{calc.fat}g</span><span className="mp-lbl">lip.</span></div>
-                  </div>
-                </div>
-              )
-            })}
-          </div>
-
-          <div className="labo-total">
-            Total apercu · {Math.round(totals.kcal)} kcal · P{roundTotal(totals.protein)} · G{roundTotal(totals.carbs)} · L{roundTotal(totals.fat)}
-          </div>
-        </div>
-      )}
-
-      {addedCount > 0 && (
-        <button className="btn-ghost" onClick={onGoToday}>
-          Voir Aujourd hui ({addedCount} ajout{addedCount > 1 ? 's' : ''})
+      <div className="storage-actions" style={{ marginBottom: 'var(--s4)' }}>
+        <button className="save-btn" onClick={openPicker}>
+          Choisir une photo
         </button>
+        {imageSrc && phase !== 'analyzing' && (
+          <button className="btn-ghost" onClick={analyzeImage}>
+            Analyser la photo
+          </button>
+        )}
+        <input
+          ref={fileRef}
+          type="file"
+          accept="image/*"
+          capture="environment"
+          onChange={handleFile}
+          hidden
+        />
+      </div>
+
+      {phase === 'idle' && (
+        <div className="empty">
+          <div className="empty-icon">[]</div>
+          <div className="empty-txt">Ajoute une photo pour obtenir une suggestion de repas.</div>
+        </div>
       )}
+
+      {(phase === 'preview' || phase === 'analyzing' || phase === 'result' || phase === 'error') && imageSrc && (
+        <div className="card">
+          <div className="card-title">Photo choisie</div>
+          <img
+            src={imageSrc}
+            alt="Repas a analyser"
+            style={{ width: '100%', borderRadius: 14, display: 'block', objectFit: 'cover', maxHeight: 320 }}
+          />
+        </div>
+      )}
+
+      {phase === 'analyzing' && (
+        <div className="empty">
+          <div className="empty-icon spin">[]</div>
+          <div className="empty-txt">Analyse de la photo en cours...</div>
+        </div>
+      )}
+
+      {phase === 'error' && (
+        <>
+          <div className="empty">
+            <div className="empty-icon">!</div>
+            <div className="empty-txt">{error}</div>
+          </div>
+          <button className="btn-ghost" onClick={() => setPhase(imageSrc ? 'preview' : 'idle')}>
+            Revenir
+          </button>
+        </>
+      )}
+
+      {phase === 'result' && selected && (
+        <>
+          <div className="card">
+            <div className="card-title">Suggestion principale</div>
+            <div className="product-name" style={{ marginBottom: 4 }}>{selected.name}</div>
+            <div className="product-extra">
+              Reconnu comme "{selected.rawLabel}" · confiance {Math.round(selected.score * 100)}% · {selected.confidence.note}
+            </div>
+          </div>
+
+          {detections.length > 1 && (
+            <div className="card">
+              <div className="card-title">Autres suggestions</div>
+              <div className="qty-presets">
+                {detections.map((item, index) => (
+                  <button
+                    key={item.id}
+                    className={`qty-preset ${index === selectedIndex ? 'active' : ''}`}
+                    onClick={() => {
+                      setSelectedIndex(index)
+                      setQty(String(clamp(item.baseQty || 150, 50, 600)))
+                    }}
+                  >
+                    {item.name}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          <div className="log-form">
+            <div className="form-title">Ajuster la portion</div>
+
+            <div className="qty-presets">
+              {[100, 150, 200, selected.baseQty, 300].filter(Boolean).map((grams) => (
+                <button
+                  key={grams}
+                  className={`qty-preset ${String(grams) === qty ? 'active' : ''}`}
+                  onClick={() => setQty(String(grams))}
+                >
+                  {grams}g
+                </button>
+              ))}
+            </div>
+
+            <div className="ig" style={{ marginBottom: 'var(--s3)' }}>
+              <label>Portion estimee</label>
+              <input
+                type="number"
+                step="10"
+                inputMode="decimal"
+                value={qty}
+                onChange={(e) => setQty(e.target.value)}
+              />
+            </div>
+
+            {live && (
+              <div className="macro-preview">
+                {[
+                  { val: live.kcal, lbl: 'kcal', color: 'var(--acc)' },
+                  { val: `${live.protein}g`, lbl: 'prot.', color: 'var(--p-color)' },
+                  { val: `${live.carbs}g`, lbl: 'gluc.', color: 'var(--c-color)' },
+                  { val: `${live.fat}g`, lbl: 'lip.', color: 'var(--f-color)' },
+                ].map((item) => (
+                  <div className="mp-item" key={item.lbl} style={{ borderColor: added ? 'var(--ok)' : undefined }}>
+                    <span className="mp-val" style={{ color: item.color }}>{item.val}</span>
+                    <span className="mp-lbl">{item.lbl}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            <div style={{ display: 'flex', gap: 'var(--s2)' }}>
+              <button className="btn-ghost" style={{ flex: 1 }} onClick={() => setPhase('preview')}>
+                Changer de photo
+              </button>
+              <button className={`save-btn ${added ? 'saved' : ''}`} style={{ flex: 2 }} onClick={addSelected}>
+                {added ? 'Ajoute au jour' : 'Ajouter a aujourd hui'}
+              </button>
+            </div>
+
+            {added && (
+              <button
+                className="btn-ghost"
+                style={{ marginTop: 'var(--s2)', borderColor: 'var(--border-acc)', color: 'var(--acc)' }}
+                onClick={onGoToday}
+              >
+                Voir mon jour
+              </button>
+            )}
+          </div>
+        </>
+      )}
+
+      <details className="card" open={showAdvanced} onToggle={(e) => setShowAdvanced(e.currentTarget.open)}>
+        <summary className="card-title" style={{ cursor: 'pointer', listStyle: 'none' }}>
+          Details avances
+        </summary>
+        <div style={{ fontSize: 12, color: 'var(--tx-2)', lineHeight: 1.7, display: 'grid', gap: 'var(--s3)' }}>
+          <p>
+            Cette fonction utilise un modele visuel embarque dans le navigateur pour proposer un type d'aliment proche.
+            L'estimation reste indicative et fonctionne mieux sur des aliments simples ou bien visibles.
+          </p>
+          <p>
+            Moteur charge : {HF_MODEL}
+          </p>
+          <p>
+            Etat du moteur : {engineStatus === 'ready' ? 'pret' : engineStatus === 'loading' ? 'chargement' : engineStatus === 'error' ? 'erreur' : 'inactif'}
+          </p>
+          <p>
+            Conseil : pour un plat complexe, verifie toujours la suggestion ou complete avec une saisie manuelle.
+          </p>
+        </div>
+      </details>
     </div>
   )
 }
