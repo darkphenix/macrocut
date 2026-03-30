@@ -6,14 +6,28 @@
     <meta name="theme-color" content="#f5a623" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-    <meta name="apple-mobile-web-app-title" content="COUPURE" />
+    <meta name="apple-mobile-web-app-title" content="MacroCut" />
     <link rel="manifest" href="./manifest.json" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@400;500;600;700;800&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet" />
-    <title>COUPURE</title>
-    <script type="module" crossorigin src="./assets/index-CLOsAKnH.js"></script>
-    <link rel="stylesheet" crossorigin href="./assets/index-D8Sy1pA-.css">
+    <script>
+      (() => {
+        try {
+          const stored = localStorage.getItem('coupure_theme_v1')
+          const theme = ['system', 'dark', 'light'].includes(stored) ? stored : 'light'
+          const resolved = theme === 'system'
+            ? (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light')
+            : theme
+          document.documentElement.dataset.theme = resolved
+        } catch {
+          document.documentElement.dataset.theme = 'light'
+        }
+      })()
+    </script>
+    <title>MacroCut</title>
+    <script type="module" crossorigin src="./assets/index-DiQ5j7aa.js"></script>
+    <link rel="stylesheet" crossorigin href="./assets/index-BEgnQ5hS.css">
   </head>
   <body>
     <div id="root"></div>

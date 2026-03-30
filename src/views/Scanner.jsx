@@ -251,6 +251,7 @@ function NutriBadge({ product }) {
 
 export default function Scanner({ onAddItem, onGoToday }) {
   const [phase, setPhase] = useState('idle')
+  const [entryMode, setEntryMode] = useState('camera')
   const [product, setProduct] = useState(null)
   const [qty, setQty] = useState('100')
   const [error, setError] = useState('')
@@ -365,16 +366,24 @@ export default function Scanner({ onAddItem, onGoToday }) {
         </div>
       </div>
 
-      <div className="card">
-        <div className="card-title">Comment faire</div>
-        <div className="settings-warning-list">
-          <p>1. Cadre le code-barres.</p>
-          <p>2. Verifie la quantite.</p>
-          <p>3. Ajoute au suivi du jour.</p>
-        </div>
-      </div>
-
       {phase === 'idle' && (
+        <div className="seg-tabs">
+          <button
+            className={`seg-btn ${entryMode === 'camera' ? 'active' : ''}`}
+            onClick={() => setEntryMode('camera')}
+          >
+            Camera
+          </button>
+          <button
+            className={`seg-btn ${entryMode === 'manual' ? 'active' : ''}`}
+            onClick={() => setEntryMode('manual')}
+          >
+            Manuel
+          </button>
+        </div>
+      )}
+
+      {phase === 'idle' && entryMode === 'camera' && (
         <div className="card">
           <div className="card-title">Camera</div>
           <div style={{ fontSize: 12, color: 'var(--tx-2)', lineHeight: 1.6, marginBottom: 'var(--s3)' }}>
@@ -393,24 +402,26 @@ export default function Scanner({ onAddItem, onGoToday }) {
         </div>
       )}
 
-      <div className="log-form" style={{ padding: '10px 12px' }}>
-        <div className="form-title">Tu preferes saisir le code ?</div>
-        <div className="inline-input-row">
-          <div className="ig" style={{ flex: 1 }}>
-            <input
-              type="text"
-              inputMode="numeric"
-              placeholder="Ex: 3274080005003"
-              value={manualCode}
-              onChange={(e) => setManualCode(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && handleManual()}
-            />
+      {phase === 'idle' && entryMode === 'manual' && (
+        <div className="log-form" style={{ padding: '10px 12px' }}>
+          <div className="form-title">Tu preferes saisir le code ?</div>
+          <div className="inline-input-row">
+            <div className="ig" style={{ flex: 1 }}>
+              <input
+                type="text"
+                inputMode="numeric"
+                placeholder="Ex: 3274080005003"
+                value={manualCode}
+                onChange={(e) => setManualCode(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && handleManual()}
+              />
+            </div>
+            <button className="inline-save-btn" onClick={handleManual}>
+              Rechercher
+            </button>
           </div>
-          <button className="inline-save-btn" onClick={handleManual}>
-            Rechercher
-          </button>
         </div>
-      </div>
+      )}
 
       {phase === 'scan' && (
         <>

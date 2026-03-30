@@ -1,4 +1,4 @@
-﻿# COUPURE â€” Nutrition Tracker PWA
+﻿# MacroCut â€” Nutrition Tracker PWA
 
 Tracker de perte de poids avec TDEE adaptatif (style MacroFactor / Carbon).
 

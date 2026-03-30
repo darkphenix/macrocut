@@ -41,17 +41,17 @@ export default function Metabolism({
 
   const cascade = [
     {
-      label: 'BMR - repos absolu',
+      label: 'BMR',
       val: bmr ?? '-',
       unit: 'kcal/j',
-      note: 'Mifflin-St Jeor · energie minimale vitale',
+      note: 'Repos complet',
       color: 'var(--tx)',
     },
     {
-      label: `TDEE de base · x${settings.activityLevel}`,
+      label: `TDEE base x${settings.activityLevel}`,
       val: initialTDEE,
       unit: 'kcal/j',
-      note: `${act.label} - ${act.desc}`,
+      note: act.label,
       color: 'var(--tx)',
     },
     {
@@ -59,66 +59,37 @@ export default function Metabolism({
       val: tdee,
       unit: 'kcal/j',
       note: tdeeAdapted
-        ? `Fusion avec tes logs reels · confiance ${energyModel?.confidenceLabel ?? 'Faible'}`
-        : `Signal insuffisant ou bruit trop eleve · qualite ${dq}%`,
+        ? `Signal ${energyModel?.confidenceLabel ?? 'Faible'}`
+        : `Signal ${dq}%`,
       color: 'var(--acc)',
     },
     {
-      label: 'Target journalier',
+      label: 'Cible',
       val: targets.targetKcal,
       unit: 'kcal/j',
-      note: `Deficit -${targets.deficitDay} kcal · -${settings.weeklyLoss}kg/sem`,
+      note: `Deficit ${targets.deficitDay} kcal/j`,
       color: 'var(--ok)',
     },
   ]
 
   const macroRows = [
-    {
-      label: 'Proteines',
-      val: targets.protein,
-      unit: 'g',
-      color: 'var(--p-color)',
-      kcal: targets.protein * 4,
-      note: `${settings.proteinPerKg}g/kg · preserve la masse musculaire`,
-    },
-    {
-      label: 'Glucides',
-      val: targets.carbs,
-      unit: 'g',
-      color: 'var(--c-color)',
-      kcal: targets.carbs * 4,
-      note: 'Energie complementaire proteines + lipides',
-    },
-    {
-      label: 'Lipides',
-      val: targets.fat,
-      unit: 'g',
-      color: 'var(--f-color)',
-      kcal: targets.fat * 9,
-      note: 'Hormones · sante · satiete',
-    },
-    {
-      label: 'TOTAL',
-      val: targets.targetKcal,
-      unit: 'kcal',
-      color: 'var(--acc)',
-      kcal: null,
-      note: '',
-    },
+    { label: 'Proteines', val: targets.protein, unit: 'g', color: 'var(--p-color)' },
+    { label: 'Glucides', val: targets.carbs, unit: 'g', color: 'var(--c-color)' },
+    { label: 'Lipides', val: targets.fat, unit: 'g', color: 'var(--f-color)' },
   ]
 
   return (
     <div className="view">
       <div className="view-header">
         <div>
-          <div className="view-title">METABO</div>
-          <div className="view-subtitle">Analyse energetique complete</div>
+          <div className="view-title">Metabolisme</div>
+          <div className="view-subtitle">BMR, TDEE, cible</div>
         </div>
       </div>
 
       <div className="stat-grid">
         {[
-          { lbl: 'Poids actuel', val: currentWeight.toFixed(1), unit: 'kg' },
+          { lbl: 'Poids', val: currentWeight.toFixed(1), unit: 'kg' },
           { lbl: 'Taille', val: settings.height, unit: 'cm' },
           { lbl: 'Age', val: settings.age, unit: 'ans' },
           { lbl: 'Sexe', val: settings.sex === 'male' ? 'Homme' : 'Femme', unit: '' },
@@ -134,24 +105,24 @@ export default function Metabolism({
       </div>
 
       <div className="card">
-        <div className="card-title">Fiabilite du signal</div>
+        <div className="card-title">Signal</div>
         <div className="today-confidence-top">
           <span className={`quality-dot quality-dot-${quality?.level ?? 'faible'}`} />
           <span className="today-confidence-label">{energyModel?.confidenceLabel ?? quality?.label ?? 'Faible'}</span>
         </div>
         <div className="today-confidence-note" style={{ marginTop: 'var(--s2)' }}>
           {tdeeAdapted
-            ? `Adaptation active sur ${energyModel?.sampleCount ?? 0} logs complets recents, fenetre ${energyModel?.spanDays ?? 0} jours.`
-            : 'Le moteur reste proche du TDEE de base tant que le signal est trop court, incomplet ou bruité.'}
+            ? `${energyModel?.sampleCount ?? 0} logs complets sur ${energyModel?.spanDays ?? 0} jours`
+            : 'Signal encore trop court pour adapter fortement le TDEE'}
         </div>
         <div className="meta-row">
-          <div className="meta-lbl">Qualite des donnees</div>
+          <div className="meta-lbl">Qualite</div>
           <div style={{ display: 'flex', alignItems: 'baseline', gap: 4 }}>
             <div className="meta-val" style={{ color: signalColor }}>{dq}</div>
             <div className="meta-unit">/100</div>
           </div>
           <div className="meta-note">
-            {quality?.completeDays ?? 0} jours complets, {quality?.weightDays ?? 0} pesees, {quality?.kcalDays ?? 0} jours kcal sur {quality?.windowDays ?? 21} jours.
+            {quality?.completeDays ?? 0} jours complets · {quality?.weightDays ?? 0} pesees · {quality?.kcalDays ?? 0} jours kcal
           </div>
         </div>
       </div>
@@ -180,7 +151,7 @@ export default function Metabolism({
               </div>
               {iw && (
                 <div style={{ fontSize: 12, color: 'var(--tx-3)', fontFamily: 'var(--f-mono)' }}>
-                  Poids ideal estime · {iw} kg
+                  Ideal estime · {iw} kg
                 </div>
               )}
               {iw && (
@@ -190,90 +161,37 @@ export default function Metabolism({
               )}
             </div>
           </div>
-          <div style={{ height: 7, display: 'flex', borderRadius: 4, overflow: 'hidden', gap: 1 }}>
-            {[
-              { c: '#60a5fa', w: 20 },
-              { c: '#34d399', w: 25 },
-              { c: '#fbbf24', w: 20 },
-              { c: '#fb923c', w: 17 },
-              { c: '#f87171', w: 18 },
-            ].map((seg, index) => (
-              <div key={index} style={{ width: `${seg.w}%`, background: seg.c }} />
-            ))}
-          </div>
-          <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 4 }}>
-            {['<18.5', '25', '30', '35', '40+'].map((label) => (
-              <div key={label} style={{ fontSize: 8, color: 'var(--tx-3)' }}>{label}</div>
-            ))}
-          </div>
         </div>
       )}
 
       <div className="card">
-        <div className="card-title">Cascade energetique</div>
-        {cascade.map((step, index) => (
-          <div key={step.label}>
-            <div className="meta-row">
-              <div className="meta-lbl">{step.label}</div>
-              <div style={{ display: 'flex', alignItems: 'baseline', gap: 4 }}>
-                <div className="meta-val" style={{ color: step.color }}>{step.val}</div>
-                <div className="meta-unit">{step.unit}</div>
-              </div>
-              <div className="meta-note">{step.note}</div>
+        <div className="card-title">Cascade</div>
+        {cascade.map((step) => (
+          <div key={step.label} className="meta-row">
+            <div className="meta-lbl">{step.label}</div>
+            <div style={{ display: 'flex', alignItems: 'baseline', gap: 4 }}>
+              <div className="meta-val" style={{ color: step.color }}>{step.val}</div>
+              <div className="meta-unit">{step.unit}</div>
             </div>
-            {index < cascade.length - 1 && (
-              <div style={{ textAlign: 'center', color: 'var(--tx-3)', fontSize: 16, margin: '2px 0' }}>↓</div>
-            )}
+            <div className="meta-note">{step.note}</div>
           </div>
         ))}
-      </div>
 
-      <div className="card">
-        <div className="card-title">Targets macros journalieres</div>
-        {macroRows.map((macro, index) => (
-          <div
-            key={macro.label}
-            style={{
-              display: 'flex',
-              justifyContent: 'space-between',
-              alignItems: 'center',
-              padding: 'var(--s2) 0',
-              borderBottom: index < macroRows.length - 1 ? '1px solid var(--border)' : 'none',
-            }}
-          >
-            <div>
-              <div style={{ fontSize: 14, fontWeight: 700, color: macro.color }}>{macro.label}</div>
-              {macro.note && <div style={{ fontSize: 10, color: 'var(--tx-3)', marginTop: 1 }}>{macro.note}</div>}
-              {macro.kcal != null && (
-                <div style={{ fontSize: 10, color: 'var(--tx-3)', fontFamily: 'var(--f-mono)' }}>
-                  {Math.round(macro.kcal)} kcal
+        <div className="metabolism-macros-block">
+          <div className="card-title metabolism-macros-title">Macros cibles</div>
+          <div className="metabolism-macros-grid">
+            {macroRows.map((macro) => (
+              <div key={macro.label} className="metabolism-macro-card">
+                <div className="metabolism-macro-label" style={{ color: macro.color }}>
+                  {macro.label}
                 </div>
-              )}
-            </div>
-            <div style={{ fontFamily: 'var(--f-mono)', fontSize: 20, color: macro.color, fontWeight: 500 }}>
-              {macro.val} <span style={{ fontSize: 11, color: 'var(--tx-3)' }}>{macro.unit}</span>
-            </div>
+                <div className="metabolism-macro-value" style={{ color: macro.color }}>
+                  {macro.val}
+                  <span className="metabolism-macro-unit">{macro.unit}</span>
+                </div>
+              </div>
+            ))}
           </div>
-        ))}
-      </div>
-
-      <div className="card">
-        <div className="card-title">Comment l'algo adaptatif fonctionne</div>
-        <div style={{ fontSize: 12, color: 'var(--tx-2)', lineHeight: 1.7, display: 'flex', flexDirection: 'column', gap: 'var(--s3)' }}>
-          <p>
-            <strong style={{ color: 'var(--tx)' }}>Phase 1 · Base prudente</strong><br />
-            TDEE calcule depuis ton BMR Mifflin-St Jeor x coefficient d'activite.
-          </p>
-          <p>
-            <strong style={{ color: 'var(--tx)' }}>Phase 2 · Signal reel</strong><br />
-            Le moteur observe une fenetre recente, filtre les outliers simples, puis compare la tendance de poids au niveau de calories logge.
-          </p>
-          <div className="code-block">
-            TDEE brut = avg_kcal - (delta_poids x 7700 / nb_jours)
-          </div>
-          <p>
-            Au lieu de basculer brutalement, COUPURE fusionne ce TDEE brut avec le TDEE de base selon la confiance du signal. Plus les logs sont reguliers, plus le modele ose s'adapter.
-          </p>
         </div>
       </div>
     </div>

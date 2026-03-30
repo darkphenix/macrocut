@@ -17,21 +17,15 @@ function CoachNotice({ reminder, onOpenSettings, onReplayOnboarding }) {
   if (!reminder) return null
 
   return (
-    <div
-      className="card"
-      style={{
-        background: 'linear-gradient(135deg, rgba(245, 166, 35, 0.12), rgba(16, 16, 31, 0.94))',
-        borderColor: 'var(--border-acc)',
-      }}
-    >
-      <div className="card-title">Coach de routine</div>
-      <div style={{ fontSize: 16, fontWeight: 800, color: 'var(--tx)', marginBottom: 6 }}>{reminder.title}</div>
-      <div style={{ fontSize: 12, color: 'var(--tx-2)', lineHeight: 1.6 }}>{reminder.body}</div>
-      <div style={{ display: 'grid', gap: 'var(--s2)', marginTop: 'var(--s3)' }}>
-        <button className="btn-ghost" onClick={onOpenSettings}>
+    <div className="card coach-notice-card">
+      <div className="card-title">Rappels</div>
+      <div className="coach-notice-title">{reminder.title}</div>
+      <div className="coach-notice-body">{reminder.body}</div>
+      <div className="coach-notice-actions">
+        <button className="btn-ghost coach-notice-secondary" onClick={onOpenSettings}>
           Ouvrir Reglages
         </button>
-        <button className="save-btn" onClick={onReplayOnboarding}>
+        <button className="save-btn coach-notice-primary" onClick={onReplayOnboarding}>
           Revoir le demarrage
         </button>
       </div>
@@ -82,36 +76,18 @@ function ChainDots({ days }) {
 function CheckInButtons({ todayLog, onCheck }) {
   if (todayLog) {
     const labels = {
-      done: ['Fait', 'var(--ok)', '✓'],
-      minimum: ['Version mini', 'var(--p-color)', '⚡'],
-      missed: ['Rate', 'var(--danger)', '↺'],
+      done: ['Fait', 'var(--ok)', 'OK', "Tu as valide l'action complete."],
+      minimum: ['Version mini', 'var(--p-color)', 'Mini', 'La chaine reste vivante avec la version mini.'],
+      missed: ['Pas fait', 'var(--danger)', 'Pause', "Tu peux corriger si besoin."],
     }
-    const [label, color, mark] = labels[todayLog.status] ?? ['-', 'var(--tx-3)', '•']
+    const [label, color, mark, note] = labels[todayLog.status] ?? ['-', 'var(--tx-3)', '-', '']
 
     return (
-      <div
-        style={{
-          background: 'var(--surface-3)',
-          border: `1px solid ${color}22`,
-          borderRadius: 'var(--r2)',
-          padding: 'var(--s4)',
-          textAlign: 'center',
-        }}
-      >
-        <div style={{ fontSize: 28, marginBottom: 4 }}>{mark}</div>
-        <div style={{ fontFamily: 'var(--f-mono)', fontSize: 13, color }}>{label}</div>
-        <button
-          onClick={() => onCheck(null)}
-          style={{
-            marginTop: 10,
-            background: 'none',
-            border: 'none',
-            color: 'var(--tx-3)',
-            fontSize: 11,
-            cursor: 'pointer',
-            textDecoration: 'underline',
-          }}
-        >
+      <div className="habit-status-card" style={{ borderColor: `${color}22` }}>
+        <div className="habit-status-mark" style={{ color }}>{mark}</div>
+        <div className="habit-status-label" style={{ color }}>{label}</div>
+        <div className="habit-status-note">{note}</div>
+        <button className="habit-status-edit" onClick={() => onCheck(null)}>
           Corriger
         </button>
       </div>
@@ -119,45 +95,18 @@ function CheckInButtons({ todayLog, onCheck }) {
   }
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--s2)' }}>
-      <button className="save-btn" onClick={() => onCheck('done')} style={{ fontSize: 16, padding: 'var(--s4)', letterSpacing: 1 }}>
+    <div className="habit-checkin-grid">
+      <button className="habit-choice-btn habit-choice-btn-done" onClick={() => onCheck('done')}>
         Fait
+        <span>Valider l'action complete</span>
       </button>
-      <button
-        onClick={() => onCheck('minimum')}
-        style={{
-          padding: 'var(--s3) var(--s4)',
-          background: 'var(--acc-dim)',
-          border: '1px solid var(--border-acc)',
-          borderRadius: 'var(--r2)',
-          color: 'var(--acc)',
-          fontFamily: 'var(--f-ui)',
-          fontWeight: 800,
-          fontSize: 14,
-          letterSpacing: 1,
-          cursor: 'pointer',
-        }}
-      >
+      <button className="habit-choice-btn habit-choice-btn-mini" onClick={() => onCheck('minimum')}>
         Version mini
-        <div style={{ fontSize: 11, fontWeight: 400, color: 'var(--tx-2)', marginTop: 2, letterSpacing: 0 }}>
-          Garder la chaine vivante
-        </div>
+        <span>Garder la chaine vivante</span>
       </button>
-      <button
-        onClick={() => onCheck('missed')}
-        style={{
-          padding: 'var(--s2)',
-          background: 'none',
-          border: '1px solid var(--border)',
-          borderRadius: 'var(--r2)',
-          color: 'var(--tx-3)',
-          fontFamily: 'var(--f-ui)',
-          fontSize: 12,
-          cursor: 'pointer',
-          letterSpacing: 0.5,
-        }}
-      >
+      <button className="habit-choice-btn habit-choice-btn-missed" onClick={() => onCheck('missed')}>
         Pas fait aujourd hui
+        <span>Noter la journee telle quelle</span>
       </button>
     </div>
   )
@@ -193,7 +142,8 @@ function HabitSetup({ onCreate, coachReminder, onOpenSettings, onReplayOnboardin
       <div className="view-header">
         <div>
           <div className="view-title">HABITUDE</div>
-          <div className="view-subtitle">{step === 'pick' ? 'Choisis une routine facile a tenir' : 'Ajuste ta routine de depart'}</div>
+          <div className="view-title">Motivation</div>
+          <div className="view-subtitle">{step === 'pick' ? 'Choisis ta chaine' : 'Regle la chaine'}</div>
         </div>
       </div>
 
@@ -201,9 +151,6 @@ function HabitSetup({ onCreate, coachReminder, onOpenSettings, onReplayOnboardin
 
       {step === 'pick' && (
         <>
-          <div style={{ fontSize: 13, color: 'var(--tx-3)', lineHeight: 1.6, padding: '0 2px' }}>
-            Une seule habitude active a la fois. Le but est de revenir chaque jour, meme en version mini.
-          </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--s2)' }}>
             {HABIT_SUGGESTIONS.map((suggestion) => (
               <button
@@ -252,7 +199,7 @@ function HabitSetup({ onCreate, coachReminder, onOpenSettings, onReplayOnboardin
             <div>
               <div style={{ fontWeight: 700, fontSize: 16, color: 'var(--tx)' }}>{selected.name}</div>
               <div style={{ fontSize: 12, color: 'var(--tx-2)', marginTop: 4 }}>
-                L objectif n est pas d etre parfait. L objectif est de revenir tous les jours.
+                Une action claire. Une version mini.
               </div>
             </div>
           </div>
@@ -351,13 +298,15 @@ function HabitActive({ habit, logs, onLog, onReset, graduated, coachReminder, on
   const todayLog = logs.find((log) => log.date === todayStr()) ?? null
   const context = getContextMessage(streak, todayLog?.status)
   const progress = Math.min(100, Math.round((streak / GRADUATION_DAYS) * 100))
+  const dateLabel = new Date().toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' })
 
   return (
     <div className="view">
       <div className="view-header">
         <div>
           <div className="view-title">HABITUDE</div>
-          <div className="view-subtitle">{graduated ? 'Routine installee' : `Jour ${streak} / ${GRADUATION_DAYS}`}</div>
+          <div className="view-title">Motivation</div>
+          <div className="view-subtitle">{graduated ? 'Chaine installee' : `Jour ${streak} / ${GRADUATION_DAYS}`}</div>
         </div>
         <div className="header-right">
           {streak > 0 && (
@@ -368,60 +317,31 @@ function HabitActive({ habit, logs, onLog, onReset, graduated, coachReminder, on
 
       <CoachNotice reminder={coachReminder} onOpenSettings={onOpenSettings} onReplayOnboarding={onReplayOnboarding} />
 
-      <div className="card" style={{ background: 'var(--surface)', position: 'relative', overflow: 'hidden' }}>
-        <div
-          style={{
-            position: 'absolute',
-            top: -30,
-            right: -20,
-            fontSize: 90,
-            opacity: 0.06,
-            lineHeight: 1,
-            pointerEvents: 'none',
-            userSelect: 'none',
-          }}
-        >
-          {habit.emoji}
-        </div>
-        <div style={{ display: 'flex', alignItems: 'flex-start', gap: 'var(--s3)' }}>
-          <span style={{ fontSize: 36, flexShrink: 0 }}>{habit.emoji}</span>
-          <div style={{ flex: 1 }}>
-            <div style={{ fontWeight: 700, fontSize: 18, color: 'var(--tx)', marginBottom: 4 }}>
-              {habit.fullAction}
-            </div>
-            <div style={{ fontSize: 12, color: 'var(--acc)', display: 'flex', alignItems: 'center', gap: 4 }}>
-              <span>+</span>
-              <span>Mini : {habit.miniAction}</span>
-            </div>
+      <div className="card habit-focus-card">
+        <div className="habit-focus-ghost">{habit.emoji}</div>
+        <div className="habit-focus-header">
+          <span className="habit-focus-emoji">{habit.emoji}</span>
+          <div className="habit-focus-copy">
+            <div className="habit-focus-label">Focus du jour</div>
+            <div className="habit-focus-title">{habit.fullAction}</div>
+            <div className="habit-focus-mini">Mini : {habit.miniAction}</div>
           </div>
         </div>
-      </div>
 
-      <div
-        style={{
-          background: 'var(--surface)',
-          border: '1px solid var(--border)',
-          borderRadius: 'var(--r2)',
-          padding: 'var(--s3) var(--s4)',
-          display: 'flex',
-          alignItems: 'center',
-          gap: 'var(--s3)',
-        }}
-      >
-        <span style={{ fontSize: 22 }}>{context.emoji}</span>
-        <span style={{ fontSize: 13, color: 'var(--tx-2)', lineHeight: 1.5 }}>{context.text}</span>
-      </div>
-
-      <div className="log-form">
-        <div className="form-title">
-          {new Date().toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' })}
+        <div className="habit-context-banner">
+          <span className="habit-context-emoji">{context.emoji}</span>
+          <span className="habit-context-text">{context.text}</span>
         </div>
-        <CheckInButtons todayLog={todayLog} onCheck={onLog} />
+
+        <div className="habit-checkin-panel">
+          <div className="habit-checkin-date">{dateLabel}</div>
+          <CheckInButtons todayLog={todayLog} onCheck={onLog} />
+        </div>
       </div>
 
       {!graduated && (
         <div className="card">
-          <div className="card-title">Progression vers installation</div>
+          <div className="card-title">Progression</div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--s3)', marginBottom: 'var(--s3)' }}>
             <div className="progress-track" style={{ flex: 1 }}>
               <div className="progress-fill" style={{ width: `${progress}%` }} />
@@ -431,7 +351,7 @@ function HabitActive({ habit, logs, onLog, onReset, graduated, coachReminder, on
             </div>
           </div>
           <div style={{ fontSize: 11, color: 'var(--tx-3)', textAlign: 'center' }}>
-            {streak}/{GRADUATION_DAYS} jours - {Math.max(0, GRADUATION_DAYS - streak)} restants pour ancrer la routine
+            {streak}/{GRADUATION_DAYS} jours
           </div>
         </div>
       )}
@@ -448,7 +368,7 @@ function HabitActive({ habit, logs, onLog, onReset, graduated, coachReminder, on
         >
           <div style={{ fontSize: 36, marginBottom: 8 }}>🏆</div>
           <div style={{ fontWeight: 800, fontSize: 17, color: 'var(--ok)', marginBottom: 4 }}>
-            Routine installee
+            Chaine installee
           </div>
           <div style={{ fontSize: 12, color: 'var(--tx-2)', marginBottom: 'var(--s3)' }}>
             {streak} jours consecutifs. Tu peux continuer ou lancer une nouvelle habitude.
@@ -459,44 +379,44 @@ function HabitActive({ habit, logs, onLog, onReset, graduated, coachReminder, on
         </div>
       )}
 
-      <div className="card">
-        <div className="card-title">Regularite - 14 derniers jours</div>
+      <div className="card habit-summary-card">
+        <div className="card-title">Bilan recent</div>
         <ChainDots days={last14} />
-        <div style={{ display: 'flex', gap: 'var(--s4)', marginTop: 'var(--s3)', justifyContent: 'center' }}>
+        <div className="habit-summary-legend">
           {[
             { color: 'var(--acc)', label: `${perfect} Fait` },
             { color: 'var(--p-color)', label: `${rescues} Mini` },
             { color: 'var(--surface-3)', label: 'Vide', border: '1px solid var(--border)' },
           ].map((legend) => (
-            <div key={legend.label} style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-              <div style={{ width: 10, height: 10, borderRadius: '50%', background: legend.color, border: legend.border, flexShrink: 0 }} />
-              <span style={{ fontSize: 11, color: 'var(--tx-3)' }}>{legend.label}</span>
+            <div key={legend.label} className="habit-summary-legend-item">
+              <div className="habit-summary-legend-dot" style={{ background: legend.color, border: legend.border }} />
+              <span>{legend.label}</span>
             </div>
           ))}
         </div>
-      </div>
 
-      <div className="stat-grid">
-        <div className="stat-card">
-          <div className="stat-lbl">Chaine actuelle</div>
-          <div className="stat-val">{streak}<span className="stat-unit">j</span></div>
-        </div>
-        <div className="stat-card">
-          <div className="stat-lbl">Rescues utilises</div>
-          <div className="stat-val" style={{ color: rescues > 0 ? 'var(--p-color)' : undefined }}>
-            {rescues}<span className="stat-unit">mini</span>
+        <div className="habit-summary-stats">
+          <div className="stat-card habit-summary-stat-card">
+            <div className="stat-lbl">Chaine</div>
+            <div className="stat-val">{streak}<span className="stat-unit">j</span></div>
           </div>
-        </div>
-        <div className="stat-card">
-          <div className="stat-lbl">Jours pleins</div>
-          <div className="stat-val" style={{ color: 'var(--acc)' }}>
-            {perfect}<span className="stat-unit">ok</span>
+          <div className="stat-card habit-summary-stat-card">
+            <div className="stat-lbl">Mini</div>
+            <div className="stat-val" style={{ color: rescues > 0 ? 'var(--p-color)' : undefined }}>
+              {rescues}<span className="stat-unit">mini</span>
+            </div>
           </div>
-        </div>
-        <div className="stat-card">
-          <div className="stat-lbl">Debut</div>
-          <div className="stat-val" style={{ fontSize: 14 }}>
-            {new Date(`${habit.createdAt}T12:00`).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' })}
+          <div className="stat-card habit-summary-stat-card">
+            <div className="stat-lbl">Faits</div>
+            <div className="stat-val" style={{ color: 'var(--acc)' }}>
+              {perfect}<span className="stat-unit">ok</span>
+            </div>
+          </div>
+          <div className="stat-card habit-summary-stat-card">
+            <div className="stat-lbl">Debut</div>
+            <div className="stat-val" style={{ fontSize: 14 }}>
+              {new Date(`${habit.createdAt}T12:00`).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' })}
+            </div>
           </div>
         </div>
       </div>

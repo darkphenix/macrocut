@@ -1,7 +1,7 @@
 import { todayStr, toDateKey } from './date'
 
 /**
- * COUPURE - Pipeline nutrition full client
+ * MacroCut - Pipeline nutrition full client
  *
  * 1. BMR / TDEE initial
  * 2. Qualite des logs

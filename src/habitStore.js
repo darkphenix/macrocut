@@ -1,5 +1,5 @@
 /**
- * COUPURE - Module Habitude
+ * MacroCut - Module Habitude
  * Une seule habitude active, systeme anti-abandon.
  */
 
@@ -15,8 +15,8 @@ export const HABIT_SUGGESTIONS = [
     id: 'checkin',
     emoji: '◎',
     name: 'Check-in quotidien',
-    full: 'Ouvrir COUPURE et faire ton check-in du jour',
-    mini: 'Ouvrir COUPURE 30 secondes',
+    full: 'Ouvrir MacroCut et faire ton check-in du jour',
+    mini: 'Ouvrir MacroCut 30 secondes',
     focus: 'checkin',
   },
   { id: 'walk', emoji: '🚶', name: 'Marche quotidienne', full: 'Marcher 10 minutes', mini: 'Marcher 2 minutes dehors' },
@@ -37,8 +37,8 @@ export function createDefaultCoachHabit(reminderTime = '07:30') {
     id: `checkin_${Date.now()}`,
     emoji: '◎',
     name: 'Check-in quotidien',
-    fullAction: 'Ouvrir COUPURE et faire ton check-in du jour',
-    miniAction: 'Ouvrir COUPURE 30 secondes',
+    fullAction: 'Ouvrir MacroCut et faire ton check-in du jour',
+    miniAction: 'Ouvrir MacroCut 30 secondes',
     reminderTime,
     createdAt: todayStr(),
     graduated: false,
@@ -47,12 +47,28 @@ export function createDefaultCoachHabit(reminderTime = '07:30') {
   }
 }
 
+function migrateHabitText(habit) {
+  if (!habit || typeof habit !== 'object') return null
+
+  const nextHabit = { ...habit }
+
+  if (nextHabit.fullAction === 'Ouvrir COUPURE et faire ton check-in du jour') {
+    nextHabit.fullAction = 'Ouvrir MacroCut et faire ton check-in du jour'
+  }
+
+  if (nextHabit.miniAction === 'Ouvrir COUPURE 30 secondes') {
+    nextHabit.miniAction = 'Ouvrir MacroCut 30 secondes'
+  }
+
+  return nextHabit
+}
+
 export function loadHabit() {
   try {
     const raw = JSON.parse(localStorage.getItem(HABIT_KEY))
     if (!raw || typeof raw !== 'object') return null
     return {
-      ...raw,
+      ...migrateHabitText(raw),
       enabled: raw.enabled ?? true,
       reminderTime: typeof raw.reminderTime === 'string' ? raw.reminderTime : '08:00',
       focus: typeof raw.focus === 'string' ? raw.focus : null,

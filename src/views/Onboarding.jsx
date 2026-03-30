@@ -33,7 +33,7 @@ const STEPS = [
     title: 'Pret a demarrer',
     body: 'On initialise une routine simple. Tu pourras tout ajuster ensuite dans Reglages.',
     points: [
-      'Routine preselectionnee: ouvrir COUPURE et faire ton check-in.',
+      'Routine preselectionnee: ouvrir MacroCut et faire ton check-in.',
       'Notifications locales pour t aider a tenir petit a petit.',
     ],
   },
@@ -53,81 +53,34 @@ export default function Onboarding({ busy = false, permissionState = 'default', 
 
   return (
     <div className="view" style={{ minHeight: '100%', justifyContent: 'center' }}>
-      <section
-        className="card"
-        style={{
-          display: 'flex',
-          flexDirection: 'column',
-          gap: 'var(--s4)',
-          padding: 'var(--s5)',
-          background:
-            'radial-gradient(circle at top right, rgba(245, 166, 35, 0.16), transparent 34%), linear-gradient(180deg, rgba(20, 20, 38, 0.98), rgba(16, 16, 31, 0.96))',
-        }}
-      >
-        <div style={{ display: 'flex', gap: 'var(--s2)' }}>
+      <section className="card onboarding-card">
+        <div className="onboarding-progress">
           {STEPS.map((item, index) => (
             <span
               key={item.eyebrow}
-              style={{
-                flex: 1,
-                height: 6,
-                borderRadius: 999,
-                background:
-                  index === step
-                    ? 'linear-gradient(90deg, var(--acc), var(--acc-2))'
-                    : index < step
-                      ? 'rgba(245,166,35,0.4)'
-                      : 'rgba(255,255,255,0.08)',
-                transform: index === step ? 'scaleY(1.2)' : 'none',
-                transition: 'background var(--t-fast), transform var(--t-fast)',
-              }}
+              className={`onboarding-progress-step ${index === step ? 'active' : index < step ? 'done' : ''}`}
             />
           ))}
         </div>
 
         <div className="section-eyebrow">{current.eyebrow}</div>
-        <div style={{ fontSize: 28, fontWeight: 900, lineHeight: 1.05, color: 'var(--tx)' }}>{current.title}</div>
-        <div style={{ fontSize: 14, color: 'var(--tx-2)', lineHeight: 1.7 }}>{current.body}</div>
+        <div className="onboarding-title">{current.title}</div>
+        <div className="onboarding-body">{current.body}</div>
 
-        <div style={{ display: 'grid', gap: 'var(--s2)' }}>
+        <div className="onboarding-points">
           {current.points.map((point) => (
-            <div
-              key={point}
-              style={{
-                display: 'flex',
-                alignItems: 'flex-start',
-                gap: 10,
-                padding: 12,
-                borderRadius: 'var(--r2)',
-                border: '1px solid var(--border)',
-                background: 'rgba(8, 8, 16, 0.34)',
-                color: 'var(--tx)',
-                fontSize: 13,
-                lineHeight: 1.55,
-              }}
-            >
-              <span style={{ color: 'var(--acc)', fontFamily: 'var(--f-mono)', fontSize: 14, lineHeight: 1.2 }}>+</span>
+            <div key={point} className="onboarding-point">
+              <span className="onboarding-point-mark">+</span>
               <span>{point}</span>
             </div>
           ))}
         </div>
 
         {isLast && (
-          <div
-            style={{
-              display: 'grid',
-              gap: 4,
-              padding: 'var(--s3)',
-              borderRadius: 'var(--r2)',
-              border: '1px solid var(--border-acc)',
-              background: 'rgba(245, 166, 35, 0.08)',
-            }}
-          >
-            <div style={{ fontSize: 10, fontWeight: 800, letterSpacing: 1, textTransform: 'uppercase', color: 'var(--tx-3)' }}>
-              Etat rappels
-            </div>
+          <div className="onboarding-status">
+            <div className="onboarding-status-label">Etat rappels</div>
             <strong>{statusLabel}</strong>
-            <span style={{ color: 'var(--tx-2)', fontSize: 12, lineHeight: 1.6 }}>
+            <span className="onboarding-status-copy">
               Tu peux commencer sans permission puis activer les rappels plus tard.
             </span>
           </div>

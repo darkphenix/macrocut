@@ -66,7 +66,7 @@ self.addEventListener('notificationclick', (e) => {
 self.addEventListener('periodicsync', (e) => {
   if (e.tag === 'coupure-daily') {
     e.waitUntil(
-      self.registration.showNotification('COUPURE', {
+      self.registration.showNotification('MacroCut', {
         body: 'N\'oublie pas de logger ton poids et tes repas aujourd\'hui.',
         icon: './icon-192.png',
         tag: 'periodic',

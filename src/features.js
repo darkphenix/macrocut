@@ -22,7 +22,7 @@ function readEnvString(names, fallback) {
 
 export const ENABLE_VISION_FOOD = readEnvFlag(
   'VITE_ENABLE_VISION_FOOD',
-  readEnvFlag('VITE_ENABLE_LABO', !!import.meta.env?.DEV)
+  readEnvFlag('VITE_ENABLE_LABO', true)
 )
 
 export const VISION_FOOD_CLASSIFIER_MODEL_ID = readEnvString(

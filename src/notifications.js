@@ -1,5 +1,5 @@
 /**
- * COUPURE - Moteur de routine local
+ * MacroCut - Moteur de routine local
  *
  * Pas de backend:
  * - verification a l'ouverture et au retour au premier plan
@@ -26,7 +26,7 @@ const MESSAGE_POOLS = {
       },
       {
         title: 'Ton premier reflexe',
-        body: "Une micro-routine suffit. Ouvre COUPURE et choisis ton geste du jour.",
+        body: "Une micro-routine suffit. Ouvre MacroCut et choisis ton geste du jour.",
         route: 'coach',
       },
     ],
@@ -116,7 +116,7 @@ const MESSAGE_POOLS = {
     stable: [
       {
         title: 'Ne coupe pas le fil',
-        body: "Un passage rapide dans COUPURE suffit pour garder la chaine propre.",
+        body: "Un passage rapide dans MacroCut suffit pour garder la chaine propre.",
         route: 'coach',
       },
     ],

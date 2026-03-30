@@ -106,7 +106,7 @@ export function getStorageHealth() {
   const status = totalBytes > 1_500_000 ? 'warning' : 'ok'
   const message =
     status === 'warning'
-      ? 'Le stockage local grossit. Exporte une sauvegarde pour limiter le risque de perte.'
+      ? 'Stockage a surveiller.'
       : 'Stockage local actif. Pense à exporter une sauvegarde si tu changes de navigateur ou d’appareil.'
 
   return { supported, available, totalBytes, keyCount, status, message }
@@ -124,7 +124,7 @@ export function buildBackupPayload() {
   }
 
   return {
-    app: 'coupure',
+    app: 'macrocut',
     type: 'full-backup',
     version: EXPORT_VERSION,
     storageVersion: STORAGE_VERSION,
@@ -135,7 +135,7 @@ export function buildBackupPayload() {
 
 export function createBackupFilename() {
   const stamp = new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-')
-  return `coupure-backup-${stamp}.json`
+  return `macrocut-backup-${stamp}.json`
 }
 
 export function downloadBackupFile() {
@@ -158,7 +158,7 @@ export function downloadBackupFile() {
 
 function validateImportPayload(payload) {
   if (!payload || typeof payload !== 'object') throw new Error('INVALID_BACKUP_FORMAT')
-  if (payload.app !== 'coupure') throw new Error('INVALID_BACKUP_APP')
+  if (!['coupure', 'macrocut'].includes(payload.app)) throw new Error('INVALID_BACKUP_APP')
   if (payload.type !== 'full-backup') throw new Error('INVALID_BACKUP_TYPE')
   if (!payload.data || typeof payload.data !== 'object') throw new Error('INVALID_BACKUP_DATA')
   return payload

@@ -1,6 +1,6 @@
 {
-  "name": "COUPURE — Nutrition Tracker",
-  "short_name": "COUPURE",
+  "name": "MacroCut — Nutrition Tracker",
+  "short_name": "MacroCut",
   "description": "Suivi nutrition adaptatif TDEE pour la perte de poids",
   "start_url": "./",
   "display": "standalone",
